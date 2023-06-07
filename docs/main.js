@@ -2,13 +2,23 @@
 
 var zigAnalysis;
 
+const NAV_MODES = {
+  API: "#A;",
+  GUIDES: "#G;",
+};
+
 (function () {
   const domStatus = document.getElementById("status");
   const domSectNav = document.getElementById("sectNav");
   const domListNav = document.getElementById("listNav");
-  const domSectMainPkg = document.getElementById("sectMainPkg");
-  const domSectPkgs = document.getElementById("sectPkgs");
-  const domListPkgs = document.getElementById("listPkgs");
+  const domApiSwitch = document.getElementById("ApiSwitch");
+  const domGuideSwitch = document.getElementById("guideSwitch");
+  const domGuidesMenu = document.getElementById("guidesMenu");
+  const domApiMenu = document.getElementById("apiMenu");
+  const domGuidesList = document.getElementById("guidesList");
+  const domSectMainMod = document.getElementById("sectMainMod");
+  const domSectMods = document.getElementById("sectMods");
+  const domListMods = document.getElementById("listMods");
   const domSectTypes = document.getElementById("sectTypes");
   const domListTypes = document.getElementById("listTypes");
   const domSectTests = document.getElementById("sectTests");
@@ -29,6 +39,7 @@ var zigAnalysis;
   const domListValues = document.getElementById("listValues");
   const domFnProto = document.getElementById("fnProto");
   const domFnProtoCode = document.getElementById("fnProtoCode");
+  const domFnSourceLink = document.getElementById("fnSourceLink");
   const domSectParams = document.getElementById("sectParams");
   const domListParams = document.getElementById("listParams");
   const domTldDocs = document.getElementById("tldDocs");
@@ -44,16 +55,18 @@ var zigAnalysis;
   const domSectSearchResults = document.getElementById("sectSearchResults");
   const domSectSearchAllResultsLink = document.getElementById("sectSearchAllResultsLink");
   const domDocs = document.getElementById("docs");
+  const domGuidesSection = document.getElementById("guides");
+  const domActiveGuide = document.getElementById("activeGuide");
+  
   const domListSearchResults = document.getElementById("listSearchResults");
   const domSectSearchNoResults = document.getElementById("sectSearchNoResults");
   const domSectInfo = document.getElementById("sectInfo");
   // const domTdTarget = (document.getElementById("tdTarget"));
-  const domPrivDeclsBox = document.getElementById("privDeclsBox");
   const domTdZigVer = document.getElementById("tdZigVer");
   const domHdrName = document.getElementById("hdrName");
   const domHelpModal = document.getElementById("helpModal");
   const domSearchPlaceholder = document.getElementById("searchPlaceholder");
-  const sourceFileUrlTemplate = "src/{{file}}.html#L{{line}}"
+  const sourceFileUrlTemplate = "src/{{mod}}/{{file}}.html#L{{line}}"
   const domLangRefLink = document.getElementById("langRefLink");
 
   let searchTimer = null;
@@ -70,30 +83,31 @@ var zigAnalysis;
   let typeTypeId = findTypeTypeId();
   let pointerSizeEnum = { One: 0, Many: 1, Slice: 2, C: 3 };
 
-  // for each package, is an array with packages to get to this one
-  let canonPkgPaths = computeCanonicalPackagePaths();
+  let declSearchIndex = new RadixTree();
+  window.search = declSearchIndex;
 
-  // for each decl, is an array with {declNames, pkgNames} to get to this one
+  // for each module, is an array with modules to get to this one
+  let canonModPaths = computeCanonicalModulePaths();
 
+  // for each decl, is an array with {declNames, modNames} to get to this one
   let canonDeclPaths = null; // lazy; use getCanonDeclPath
 
-  // for each type, is an array with {declNames, pkgNames} to get to this one
-
+  // for each type, is an array with {declNames, modNames} to get to this one
   let canonTypeDecls = null; // lazy; use getCanonTypeDecl
 
   let curNav = {
-    showPrivDecls: false,
-    // each element is a package name, e.g. @import("a") then within there @import("b")
-    // starting implicitly from root package
-    pkgNames: [],
-    // same as above except actual packages, not names
-    pkgObjs: [],
+    mode: NAV_MODES.API,
+    activeGuide: "",
+    // each element is a module name, e.g. @import("a") then within there @import("b")
+    // starting implicitly from root module
+    modNames: [],
+    // same as above except actual modules, not names
+    modObjs: [],
     // Each element is a decl name, `a.b.c`, a is 0, b is 1, c is 2, etc.
-    // empty array means refers to the package itself
+    // empty array means refers to the module itself
     declNames: [],
     // these will be all types, except the last one may be a type or a decl
     declObjs: [],
-
     // (a, b, c, d) comptime call; result is the value the docs refer to
     callName: null,
   };
@@ -109,14 +123,25 @@ var zigAnalysis;
   // map of decl index to list of comptime fn calls
   // let nodesToCallsMap = indexNodesToCalls();
 
+  let guidesSearchIndex = {}; 
+  window.guideSearch = guidesSearchIndex;
+  parseGuides();
+
+  // identifiers can contain '?' so we want to allow typing
+  // the question mark when the search is focused instead of toggling the help modal
+  let canToggleHelpModal = true;
+
   domSearch.disabled = false;
   domSearch.addEventListener("keydown", onSearchKeyDown, false);
+  domSearch.addEventListener("input", onSearchInput, false);
   domSearch.addEventListener("focus", ev => {
     domSearchPlaceholder.classList.add("hidden");
+    canToggleHelpModal = false;
   });
   domSearch.addEventListener("blur", ev => {
     if (domSearch.value.length == 0)
       domSearchPlaceholder.classList.remove("hidden");
+    canToggleHelpModal = true;
   });
   domSectSearchAllResultsLink.addEventListener('click', onClickSearchShowAllResults, false);
   function onClickSearchShowAllResults(ev) {
@@ -126,33 +151,8 @@ var zigAnalysis;
     onHashChange();
   }
 
-  domPrivDeclsBox.addEventListener(
-    "change",
-    function () {
-      if (this.checked != curNav.showPrivDecls) {
-        if (
-          this.checked &&
-          location.hash.length > 1 &&
-          location.hash[1] != "*"
-        ) {
-          location.hash = "#*" + location.hash.substring(1);
-          return;
-        }
-        if (
-          !this.checked &&
-          location.hash.length > 1 &&
-          location.hash[1] == "*"
-        ) {
-          location.hash = "#" + location.hash.substring(2);
-          return;
-        }
-      }
-    },
-    false
-  );
-
   if (location.hash == "") {
-    location.hash = "#root";
+    location.hash = "#A;";
   }
 
   // make the modal disappear if you click outside it
@@ -173,16 +173,19 @@ var zigAnalysis;
   domLangRefLink.href = `https://ziglang.org/documentation/${langRefVersion}/`;
 
   function renderTitle() {
-    let list = curNav.pkgNames.concat(curNav.declNames);
     let suffix = " - Zig";
-    if (list.length === 0) {
-      if (rootIsStd) {
-        document.title = "std" + suffix;
-      } else {
-        document.title = zigAnalysis.params.rootName + suffix;
-      }
-    } else {
-      document.title = list.join(".") + suffix;
+    switch (curNav.mode) {
+      case NAV_MODES.API:
+        let list = curNav.modNames.concat(curNav.declNames);
+        if (list.length === 0) {
+          document.title = zigAnalysis.modules[zigAnalysis.rootMod].name + suffix;
+        } else {
+          document.title = list.join(".") + suffix;
+        }
+        return;
+      case NAV_MODES.GUIDES:
+        document.title = "[G] " + curNav.activeGuide + suffix;
+        return;
     }
   }
 
@@ -267,8 +270,11 @@ var zigAnalysis;
 
   function resolveValue(value) {
     let i = 0;
-    while (i < 1000) {
+    while (true) {
       i += 1;
+      if (i >= 10000) {
+        throw "resolveValue quota exceeded"
+      }
 
       if ("refPath" in value.expr) {
         value = { expr: value.expr.refPath[value.expr.refPath.length - 1] };
@@ -290,8 +296,31 @@ var zigAnalysis;
 
       return value;
     }
-    console.assert(false);
-    return {};
+  }
+
+  function resolveGenericRet(genericFunc) {
+    if (genericFunc.generic_ret == null) return null;
+    let result = resolveValue({expr: genericFunc.generic_ret});
+    
+    let i = 0;
+    while (true) {
+      i += 1;
+      if (i >= 10000) {
+        throw "resolveGenericRet quota exceeded"
+      }
+
+      if ("call" in result.expr) {
+        let call = zigAnalysis.calls[result.expr.call];
+        let resolvedFunc = resolveValue({ expr: call.func });
+        if (!("type" in resolvedFunc.expr)) return null;
+        let callee = getType(resolvedFunc.expr.type);
+        if (!callee.generic_ret) return null;
+        result = resolveValue({ expr: callee.generic_ret });
+        continue;
+      }
+
+      return result;
+    }
   }
 
   //    function typeOfDecl(decl){
@@ -377,14 +406,124 @@ var zigAnalysis;
   //        console.assert(false);
   //        return ({});
   //    }
+  function renderGuides() {
+    renderTitle();
 
-  function render() {
+    // set guide mode
+    domGuideSwitch.classList.add("active");
+    domApiSwitch.classList.remove("active");
+    domDocs.classList.add("hidden");
+    domGuidesSection.classList.remove("hidden");
+    domActiveGuide.classList.add("hidden");
+    domApiMenu.classList.add("hidden");
+    domSectSearchResults.classList.add("hidden");
+    domSectSearchAllResultsLink.classList.add("hidden");
+    domSectSearchNoResults.classList.add("hidden");
+
+    // sidebar guides list
+    const section_list = zigAnalysis.guide_sections;
+    resizeDomList(domGuidesList, section_list.length, '<div><h2><span></span></h2><ul class="modules"></ul></div>');
+    for (let j = 0; j < section_list.length; j += 1) {
+        const section = section_list[j];
+        const domSectionName = domGuidesList.children[j].children[0].children[0];
+        const domGuides = domGuidesList.children[j].children[1];
+        domSectionName.textContent = section.name;
+        resizeDomList(domGuides, section.guides.length, '<li><a href="#"></a></li>');
+        for (let i = 0; i < section.guides.length; i += 1) {
+          const guide = section.guides[i];
+          let liDom = domGuides.children[i];
+          let aDom = liDom.children[0];
+          aDom.textContent = guide.title;
+          aDom.setAttribute("href", NAV_MODES.GUIDES + guide.name);
+          if (guide.name === curNav.activeGuide) {
+            aDom.classList.add("active");
+          } else {
+            aDom.classList.remove("active");
+          }
+        }
+    }
+  
+    if (section_list.length > 0) {
+      domGuidesMenu.classList.remove("hidden");
+    }
+
+    
+    if (curNavSearch !== "") {
+          return renderSearchGuides();
+    }
+
+    // main content
+    let activeGuide = undefined;
+    outer: for (let i = 0; i < zigAnalysis.guide_sections.length; i += 1) {
+      const section = zigAnalysis.guide_sections[i];
+      for (let j = 0; j < section.guides.length; j += 1) {
+        const guide = section.guides[j];
+        if (guide.name == curNav.activeGuide) {
+          activeGuide = guide;
+          break outer;
+        }
+      }
+    }        
+    
+    if (activeGuide == undefined) {
+      const root_file_idx = zigAnalysis.modules[zigAnalysis.rootMod].file;
+      const root_file_name = getFile(root_file_idx).name;
+      domActiveGuide.innerHTML = markdown(`
+          # Zig Guides
+          These autodocs don't contain any guide.
+
+          While the API section is a reference guide autogenerated from Zig source code,
+          guides are meant to be handwritten explanations that provide for example:
+
+          - how-to explanations for common use-cases 
+          - technical documentation 
+          - information about advanced usage patterns
+          
+          You can add guides by specifying which markdown files to include
+          in the top level doc comment of your root file, like so:
+
+          (At the top of *${root_file_name}*)
+          \`\`\`
+          //!zig-autodoc-guide: intro.md
+          //!zig-autodoc-guide: quickstart.md
+          //!zig-autodoc-guide: advanced-docs/advanced-stuff.md
+          \`\`\`
+
+          You can also create sections to group guides together:
+
+          \`\`\`
+          //!zig-autodoc-section: CLI Usage
+          //!zig-autodoc-guide: cli-basics.md
+          //!zig-autodoc-guide: cli-advanced.md
+          \`\`\`
+           
+        
+          **Note that this feature is still under heavy development so expect bugs**
+          **and missing features!**
+
+          Happy writing!
+        `);
+    } else {
+      domActiveGuide.innerHTML = markdown(activeGuide.body);
+    }
+    domActiveGuide.classList.remove("hidden");
+  }
+
+  function renderApi() {
+    // set Api mode
+    domApiSwitch.classList.add("active");
+    domGuideSwitch.classList.remove("active");
+    domGuidesSection.classList.add("hidden");
+    domDocs.classList.remove("hidden");
+    domApiMenu.classList.remove("hidden");
+    domGuidesMenu.classList.add("hidden");
+
     domStatus.classList.add("hidden");
     domFnProto.classList.add("hidden");
     domSectParams.classList.add("hidden");
     domTldDocs.classList.add("hidden");
-    domSectMainPkg.classList.add("hidden");
-    domSectPkgs.classList.add("hidden");
+    domSectMainMod.classList.add("hidden");
+    domSectMods.classList.add("hidden");
     domSectTypes.classList.add("hidden");
     domSectTests.classList.add("hidden");
     domSectDocTests.classList.add("hidden");
@@ -409,34 +548,34 @@ var zigAnalysis;
 
     renderTitle();
     renderInfo();
-    renderPkgList();
-
-    domPrivDeclsBox.checked = curNav.showPrivDecls;
+    renderModList();
 
     if (curNavSearch !== "") {
-      return renderSearch();
+          return renderSearchAPI();
     }
 
-
-    let rootPkg = zigAnalysis.packages[zigAnalysis.rootPkg];
-    let pkg = rootPkg;
-    curNav.pkgObjs = [pkg];
-    for (let i = 0; i < curNav.pkgNames.length; i += 1) {
-      let childPkg = zigAnalysis.packages[pkg.table[curNav.pkgNames[i]]];
-      if (childPkg == null) {
+    let rootMod = zigAnalysis.modules[zigAnalysis.rootMod];
+    let mod = rootMod;
+    curNav.modObjs = [mod];
+    for (let i = 0; i < curNav.modNames.length; i += 1) {
+      let childMod = zigAnalysis.modules[mod.table[curNav.modNames[i]]];
+      if (childMod == null) {
         return render404();
       }
-      pkg = childPkg;
-      curNav.pkgObjs.push(pkg);
+      mod = childMod;
+      curNav.modObjs.push(mod);
     }
 
-    let currentType = getType(pkg.main);
+    let currentType = getType(mod.main);
     curNav.declObjs = [currentType];
+    let lastDecl = mod.main;
     for (let i = 0; i < curNav.declNames.length; i += 1) {
       let childDecl = findSubDecl(currentType, curNav.declNames[i]);
-      if (childDecl == null) {
+      window.last_decl = childDecl;
+      if (childDecl == null || childDecl.is_private === true) {
         return render404();
       }
+      lastDecl = childDecl;
 
       let childDeclValue = resolveValue(childDecl.value).expr;
       if ("type" in childDeclValue) {
@@ -449,7 +588,9 @@ var zigAnalysis;
       currentType = childDecl;
       curNav.declObjs.push(currentType);
     }
-    
+
+
+
     window.x = currentType;
 
     renderNav();
@@ -459,9 +600,7 @@ var zigAnalysis;
     let lastIsType = isType(last);
     let lastIsContainerType = isContainerType(last);
 
-    if (lastIsDecl) {
-      renderDocTest(last);
-    }
+    renderDocTest(lastDecl);
 
     if (lastIsContainerType) {
       return renderContainer(last);
@@ -492,11 +631,41 @@ var zigAnalysis;
 
   }
 
+  function render() {
+    switch (curNav.mode) {
+      case NAV_MODES.API:
+        return renderApi();
+      case NAV_MODES.GUIDES:
+        return renderGuides();
+      default:
+        throw "?";
+    }
+  }
+
+
   function renderDocTest(decl) {
     if (!decl.decltest) return;
     const astNode = getAstNode(decl.decltest);
     domSectDocTests.classList.remove("hidden");
-    domDocTestsCode.innerHTML = astNode.code;
+    domDocTestsCode.innerHTML = renderZigSource(astNode.code);
+  }
+
+  function renderZigSource(code) {
+    let lines = code.split("\n");
+    let result = "";
+    let indent_level = 0;
+    for (let i = 0; i < lines.length; i += 1) {
+      let line = lines[i].trim();
+      if (line[0] == "}") indent_level -= 1;
+      for (let j = 0; j < indent_level; j += 1) {
+        result += "    ";
+      }
+      if (line.startsWith("\\\\")) result += "    "
+      result += line;
+      if (i != lines.length - 1) result += "\n";
+      if (line[line.length - 1] == "{") indent_level += 1;
+    }
+    return result;
   }
 
   function renderUnknownDecl(decl) {
@@ -520,7 +689,7 @@ var zigAnalysis;
   function typeIsStructWithNoFields(typeIndex) {
     let typeObj = getType(typeIndex);
     if (typeObj.kind !== typeKinds.Struct) return false;
-    return typeObj.fields.length == 0;
+    return typeObj.field_types.length == 0;
   }
 
   function typeIsGenericFn(typeIndex) {
@@ -548,6 +717,8 @@ var zigAnalysis;
       wantLink: true,
       fnDecl,
     });
+
+    domFnSourceLink.innerHTML = "[<a target=\"_blank\" href=\"" + sourceFileLink(fnDecl) + "\">src</a>]";
 
     let docsSource = null;
     let srcNode = getAstNode(fnDecl.src);
@@ -634,7 +805,7 @@ var zigAnalysis;
       docsSource = protoSrcNode.docs;
     }
     if (docsSource != null) {
-      domTldDocs.innerHTML = markdown(docsSource);
+      domTldDocs.innerHTML = markdown(docsSource, fnDecl);
       domTldDocs.classList.remove("hidden");
     }
     domFnProto.classList.remove("hidden");
@@ -693,25 +864,24 @@ var zigAnalysis;
   }
 
   function renderNav() {
-    let len = curNav.pkgNames.length + curNav.declNames.length;
+    let len = curNav.modNames.length + curNav.declNames.length;
     resizeDomList(domListNav, len, '<li><a href="#"></a></li>');
     let list = [];
-    let hrefPkgNames = [];
+    let hrefModNames = [];
     let hrefDeclNames = [];
-    for (let i = 0; i < curNav.pkgNames.length; i += 1) {
-      hrefPkgNames.push(curNav.pkgNames[i]);
-      let name = curNav.pkgNames[i];
-      if (name == "root") name = zigAnalysis.rootPkgName;
+    for (let i = 0; i < curNav.modNames.length; i += 1) {
+      hrefModNames.push(curNav.modNames[i]);
+      let name = curNav.modNames[i];
       list.push({
         name: name,
-        link: navLink(hrefPkgNames, hrefDeclNames),
+        link: navLink(hrefModNames, hrefDeclNames),
       });
     }
     for (let i = 0; i < curNav.declNames.length; i += 1) {
       hrefDeclNames.push(curNav.declNames[i]);
       list.push({
         name: curNav.declNames[i],
-        link: navLink(hrefPkgNames, hrefDeclNames),
+        link: navLink(hrefModNames, hrefDeclNames),
       });
     }
 
@@ -742,29 +912,29 @@ var zigAnalysis;
     domStatus.classList.remove("hidden");
   }
 
-  function renderPkgList() {
-    let rootPkg = zigAnalysis.packages[zigAnalysis.rootPkg];
+  function renderModList() {
+    const rootMod = zigAnalysis.modules[zigAnalysis.rootMod];
     let list = [];
-    for (let key in rootPkg.table) {
-      let pkgIndex = rootPkg.table[key];
-      if (zigAnalysis.packages[pkgIndex] == null) continue;
-      if (key == zigAnalysis.params.rootName) continue;
+    for (let key in rootMod.table) {
+      let modIndex = rootMod.table[key];
+      if (zigAnalysis.modules[modIndex] == null) continue;
+      if (key == rootMod.name) continue;
       list.push({
         name: key,
-        pkg: pkgIndex,
+        mod: modIndex,
       });
     }
 
     {
-      let aDom = domSectMainPkg.children[1].children[0].children[0];
-      aDom.textContent = zigAnalysis.rootPkgName;
-      aDom.setAttribute("href", navLinkPkg(zigAnalysis.rootPkg));
-      if (zigAnalysis.params.rootName === curNav.pkgNames[0]) {
+      let aDom = domSectMainMod.children[1].children[0].children[0];
+      aDom.textContent = rootMod.name;
+      aDom.setAttribute("href", navLinkMod(zigAnalysis.rootMod));
+      if (rootMod.name === curNav.modNames[0]) {
         aDom.classList.add("active");
       } else {
         aDom.classList.remove("active");
       }
-      domSectMainPkg.classList.remove("hidden");
+      domSectMainMod.classList.remove("hidden");
     }
 
     list.sort(function (a, b) {
@@ -772,48 +942,72 @@ var zigAnalysis;
     });
 
     if (list.length !== 0) {
-      resizeDomList(domListPkgs, list.length, '<li><a href="#"></a></li>');
+      resizeDomList(domListMods, list.length, '<li><a href="#"></a></li>');
       for (let i = 0; i < list.length; i += 1) {
-        let liDom = domListPkgs.children[i];
+        let liDom = domListMods.children[i];
         let aDom = liDom.children[0];
         aDom.textContent = list[i].name;
-        aDom.setAttribute("href", navLinkPkg(list[i].pkg));
-        if (list[i].name === curNav.pkgNames[0]) {
+        aDom.setAttribute("href", navLinkMod(list[i].mod));
+        if (list[i].name === curNav.modNames[0]) {
           aDom.classList.add("active");
         } else {
           aDom.classList.remove("active");
         }
       }
 
-      domSectPkgs.classList.remove("hidden");
+      domSectMods.classList.remove("hidden");
     }
   }
 
-  function navLink(pkgNames, declNames, callName) {
-    let base = "#";
-    if (curNav.showPrivDecls) {
-      base += "*";
-    }
+  function navLink(modNames, declNames, callName) {
+    let base = curNav.mode;
 
-    if (pkgNames.length === 0 && declNames.length === 0) {
+    if (modNames.length === 0 && declNames.length === 0) {
       return base;
     } else if (declNames.length === 0 && callName == null) {
-      return base + pkgNames.join(".");
+      return base + modNames.join(".");
     } else if (callName == null) {
-      return base + pkgNames.join(".") + ";" + declNames.join(".");
+      return base + modNames.join(".") + ":" + declNames.join(".");
     } else {
       return (
-        base + pkgNames.join(".") + ";" + declNames.join(".") + ";" + callName
+        base + modNames.join(".") + ":" + declNames.join(".") + ";" + callName
       );
     }
   }
 
-  function navLinkPkg(pkgIndex) {
-    return navLink(canonPkgPaths[pkgIndex], []);
+  function navLinkMod(modIndex) {
+    return navLink(canonModPaths[modIndex], []);
   }
 
   function navLinkDecl(childName) {
-    return navLink(curNav.pkgNames, curNav.declNames.concat([childName]));
+    return navLink(curNav.modNames, curNav.declNames.concat([childName]));
+  }
+
+  function findDeclNavLink(declName) {
+    if (curNav.declObjs.length == 0) return null;
+    const curFile = getAstNode(curNav.declObjs[curNav.declObjs.length - 1].src).file;
+
+    for (let i = curNav.declObjs.length - 1; i >= 0; i--) {
+      const curDecl = curNav.declObjs[i];
+      const curDeclName = curNav.declNames[i - 1];
+      if (curDeclName == declName) {
+        const declPath = curNav.declNames.slice(0, i);
+        return navLink(curNav.modNames, declPath);
+      }
+
+      const subDecl = findSubDecl(curDecl, declName);
+
+      if (subDecl != null) {
+        if (subDecl.is_private === true) {
+          return sourceFileLink(subDecl);
+        } else {
+          const declPath = curNav.declNames.slice(0, i).concat([declName]);
+          return navLink(curNav.modNames, declPath);
+        }
+      }
+    }
+
+    //throw("could not resolve links for '" + declName + "'");
   }
 
   //
@@ -830,7 +1024,7 @@ var zigAnalysis;
   //          callName += ')';
 
   //      declNamesCopy.push(callName);
-  //      return navLink(curNav.pkgNames, declNamesCopy);
+  //      return navLink(curNav.modNames, declNamesCopy);
   //  }
 
   function resizeDomListDl(dlDom, desiredLen) {
@@ -876,7 +1070,7 @@ var zigAnalysis;
         return "false";
       }
       case "&": {
-        return "&" + exprName(zigAnalysis.exprs[expr["&"]]);
+        return "&" + exprName(zigAnalysis.exprs[expr["&"]], opts);
       }
       case "compileError": {
         let compileError = expr.compileError;
@@ -893,26 +1087,43 @@ var zigAnalysis;
         let payloadHtml = "";
         const lhsExpr = zigAnalysis.exprs[expr.slice.lhs];
         const startExpr = zigAnalysis.exprs[expr.slice.start];
-        let decl = exprName(lhsExpr);
-        let start = exprName(startExpr);
+        let decl = exprName(lhsExpr, opts);
+        let start = exprName(startExpr, opts);
         let end = "";
         let sentinel = "";
         if (expr.slice["end"]) {
           const endExpr = zigAnalysis.exprs[expr.slice.end];
-          let end_ = exprName(endExpr);
+          let end_ = exprName(endExpr, opts);
           end += end_;
         }
         if (expr.slice["sentinel"]) {
           const sentinelExpr = zigAnalysis.exprs[expr.slice.sentinel];
-          let sentinel_ = exprName(sentinelExpr);
+          let sentinel_ = exprName(sentinelExpr, opts);
           sentinel += " :" + sentinel_;
         }
         payloadHtml += decl + "[" + start + ".." + end + sentinel + "]";
         return payloadHtml;
       }
+      case "sliceLength": {
+        let payloadHtml = "";
+        const lhsExpr = zigAnalysis.exprs[expr.sliceLength.lhs];
+        const startExpr = zigAnalysis.exprs[expr.sliceLength.start];
+        const lenExpr = zigAnalysis.exprs[expr.sliceLength.len];
+        let decl = exprName(lhsExpr, opts);
+        let start = exprName(startExpr, opts);
+        let len = exprName(lenExpr, opts);
+        let sentinel = "";
+        if (expr.sliceLength["sentinel"]) {
+            const sentinelExpr = zigAnalysis.exprs[expr.sliceLength.sentinel];
+            let sentinel_ = exprName(sentinelExpr, options);
+            sentinel += " :" + sentinel_;
+        }
+        payloadHtml += decl + "[" + start + "..][0.." + len + sentinel + "]";
+        return payloadHtml;
+      }
       case "sliceIndex": {
         const sliceIndex = zigAnalysis.exprs[expr.sliceIndex];
-        return exprName(sliceIndex, opts);
+        return exprName(sliceIndex, opts, opts);
       }
       case "cmpxchg": {
         const typeIndex = zigAnalysis.exprs[expr.cmpxchg.type];
@@ -1016,23 +1227,10 @@ var zigAnalysis;
         const switchIndex = zigAnalysis.exprs[expr.switchIndex];
         return exprName(switchIndex, opts);
       }
-      case "refPath": {
-        let name = exprName(expr.refPath[0]);
-        for (let i = 1; i < expr.refPath.length; i++) {
-          let component = undefined;
-          if ("string" in expr.refPath[i]) {
-            component = expr.refPath[i].string;
-          } else {
-            component = exprName(expr.refPath[i]);
-          }
-          name += "." + component;
-        }
-        return name;
-      }
       case "fieldRef": {
-        const enumObj = exprName({ type: expr.fieldRef.type }, opts);
-        const field =
-          getAstNode(enumObj.src).fields[expr.fieldRef.index];
+        const field_idx = expr.fieldRef.index;
+        const type = getType(expr.fieldRef.type);
+        const field = getAstNode(type.src).fields[field_idx];
         const name = getAstNode(field).name;
         return name;
       }
@@ -1076,10 +1274,6 @@ var zigAnalysis;
           }
           case "panic": {
             payloadHtml += "panic";
-            break;
-          }
-          case "set_cold": {
-            payloadHtml += "setCold";
             break;
           }
           case "set_runtime_safety": {
@@ -1160,6 +1354,18 @@ var zigAnalysis;
           }
           case "frame_size": {
             payloadHtml += "frameSize";
+            break;
+          }
+          case "work_item_id": {
+            payloadHtml += "workItemId";
+            break;
+          }
+          case "work_group_size": {
+            payloadHtml += "workGroupSize";
+            break;
+          }
+          case "work_group_id": {
+            payloadHtml += "workGroupId";
             break;
           }
           case "ptr_to_int": {
@@ -1245,12 +1451,16 @@ var zigAnalysis;
             payloadHtml += "ptrCast";
             break;
           }
-          case "truncate": {
-            payloadHtml += "truncate";
+          case "const_cast": {
+            payloadHtml += "constCast";
             break;
           }
-          case "align_cast": {
-            payloadHtml += "alignCast";
+          case "volatile_cast": {
+            payloadHtml += "volatileCast";
+            break;
+          }
+          case "truncate": {
+            payloadHtml += "truncate";
             break;
           }
           case "has_decl": {
@@ -1532,7 +1742,11 @@ var zigAnalysis;
         return payloadHtml;
       }
       case "null": {
-        return "null";
+        if (opts.wantHtml) {
+          return '<span class="tok-null">null</span>';
+        } else {
+          return "null";
+        }
       }
       case "array": {
         let payloadHtml = ".{";
@@ -1544,7 +1758,7 @@ var zigAnalysis;
         return payloadHtml + "}";
       }
       case "comptimeExpr": {
-        return zigAnalysis.comptimeExprs[expr.comptimeExpr].code;
+        return renderZigSource(zigAnalysis.comptimeExprs[expr.comptimeExpr].code);
       }
       case "call": {
         let call = zigAnalysis.calls[expr.call];
@@ -1578,10 +1792,46 @@ var zigAnalysis;
         return exprName(exprArg, opts);
       }
       case "declRef": {
-        return getDecl(expr.declRef).name;
+        const name = getDecl(expr.declRef).name;
+
+        if (opts.wantHtml) {
+          let payloadHtml = "";
+          if (opts.wantLink) {
+            payloadHtml += '<a href="' + findDeclNavLink(name) + '">';
+          }
+          payloadHtml +=
+            '<span class="tok-kw" style="color:lightblue;">' +
+            name +
+            "</span>";
+          if (opts.wantLink) payloadHtml += "</a>";
+          return payloadHtml;
+        } else {
+          return name;
+        }
       }
       case "refPath": {
-        return expr.refPath.map((x) => exprName(x, opts)).join(".");
+        let firstComponent = expr.refPath[0];
+        let name = exprName(firstComponent, opts);
+        let url = undefined;
+        if (opts.wantLink && "declRef" in firstComponent) {
+          url = findDeclNavLink(getDecl(firstComponent.declRef).name);
+        }
+        for (let i = 1; i < expr.refPath.length; i++) {
+          let component = undefined;
+          if ("string" in expr.refPath[i]) {
+            component = expr.refPath[i].string;
+          } else {
+            component = exprName(expr.refPath[i], { ...opts, wantLink: false });
+            if (opts.wantLink && "declRef" in expr.refPath[i]) {
+              url += "." + getDecl(expr.refPath[i].declRef).name;
+              component = '<a href="' + url + '">' +
+                component +
+                "</a>";
+            }
+          }
+          name += "." + component;
+        }
+        return name;
       }
       case "int": {
         return "" + expr.int;
@@ -1621,11 +1871,203 @@ var zigAnalysis;
             throw "TODO";
           case typeKinds.Struct: {
             let structObj = typeObj;
-            return structObj;
+            let name = "";
+            let layout = "";
+            if (structObj.layout !== null) {
+              switch (structObj.layout.enumLiteral) {
+                case "Packed": {
+                  layout = "packed ";
+                  break;
+                }
+                case "Extern": {
+                  layout = "extern ";
+                  break;
+                }
+              }
+            }
+            if (opts.wantHtml) {
+              name = "<span class='tok-kw'>" + layout + "struct</span>";
+            } else {
+              name = layout + "struct";
+            }
+            if (structObj.backing_int !== null) {
+              name += "(" + exprName(structObj.backing_int, opts) + ")";
+            }
+            name += " { ";
+            if (structObj.field_types.length > 1 && opts.wantHtml) { name += "</br>"; }
+            let indent = "";
+            if (structObj.field_types.length > 1 && opts.wantHtml) {
+              indent = "&nbsp;&nbsp;&nbsp;&nbsp;"
+            }
+            if (opts.indent && structObj.field_types.length > 1) {
+              indent = opts.indent + indent;
+            }
+            let structNode = getAstNode(structObj.src);
+            let field_end = ",";
+            if (structObj.field_types.length > 1 && opts.wantHtml) {
+              field_end += "</br>";
+            } else {
+              field_end += " ";
+            }
+
+            for (let i = 0; i < structObj.field_types.length; i += 1) {
+              let fieldNode = getAstNode(structNode.fields[i]);
+              let fieldName = fieldNode.name;
+              let html = indent;
+              if (!structObj.is_tuple) {
+                html += escapeHtml(fieldName);
+              }
+
+              let fieldTypeExpr = structObj.field_types[i];
+              if (!structObj.is_tuple) {
+                html += ": ";
+              }
+
+              html += exprName(fieldTypeExpr, { ...opts, indent: indent });
+
+              if (structObj.field_defaults[i] !== null) {
+                html += " = " + exprName(structObj.field_defaults[i], opts);
+              }
+
+              html += field_end;
+
+              name += html;
+            }
+            if (opts.indent && structObj.field_types.length > 1) {
+              name += opts.indent;
+            }
+            name += "}";
+            return name;
           }
           case typeKinds.Enum: {
             let enumObj = typeObj;
-            return enumObj;
+            let name = "";
+            if (opts.wantHtml) {
+              name = "<span class='tok-kw'>enum</span>";
+            } else {
+              name = "enum";
+            }
+            if (enumObj.tag) {
+              name += "(" + exprName(enumObj.tag, opts) + ")";
+            }
+            name += " { ";
+            let enumNode = getAstNode(enumObj.src);
+            let fields_len = enumNode.fields.length;
+            if (enumObj.nonexhaustive) {
+              fields_len += 1;
+            }
+            if (fields_len > 1 && opts.wantHtml) { name += "</br>"; }
+            let indent = "";
+            if (fields_len > 1) {
+              if (opts.wantHtml) {
+                indent = "&nbsp;&nbsp;&nbsp;&nbsp;";
+              } else {
+                indent = "    ";
+              }
+            }
+            if (opts.indent) {
+              indent = opts.indent + indent;
+            }
+            let field_end = ",";
+            if (fields_len > 1 && opts.wantHtml) {
+              field_end += "</br>";
+            } else {
+              field_end += " ";
+            }
+            for (let i = 0; i < enumNode.fields.length; i += 1) {
+              let fieldNode = getAstNode(enumNode.fields[i]);
+              let fieldName = fieldNode.name;
+              let html = indent + escapeHtml(fieldName);
+
+              if (enumObj.values[i] !== null) {
+                html += " = " + exprName(enumObj.values[i], opts);
+              }
+
+              html += field_end;
+
+              name += html;
+            }
+            if (enumObj.nonexhaustive) {
+              name += indent + "_" + field_end;
+            }
+            if (opts.indent) {
+              name += opts.indent;
+            }
+            name += "}";
+            return name;
+          }
+          case typeKinds.Union: {
+            let unionObj = typeObj;
+            let name = "";
+            let layout = "";
+            if (unionObj.layout !== null) {
+              switch (unionObj.layout.enumLiteral) {
+                case "Packed": {
+                  layout = "packed ";
+                  break;
+                }
+                case "Extern": {
+                  layout = "extern ";
+                  break;
+                }
+              }
+            }
+            if (opts.wantHtml) {
+              name = "<span class='tok-kw'>" + layout + "union</span>";
+            } else {
+              name = layout + "union";
+            }
+            if (unionObj.auto_tag) {
+              if (opts.wantHtml) {
+                name += "(<span class='tok-kw'>enum</span>";
+              } else {
+                name += "(enum";
+              }
+              if (unionObj.tag) {
+                name += "(" + exprName(unionObj.tag, opts) + "))";
+              } else {
+                name += ")";
+              }
+            } else if (unionObj.tag) {
+              name += "(" + exprName(unionObj.tag, opts) + ")";
+            }
+            name += " { ";
+            if (unionObj.field_types.length > 1 && opts.wantHtml) {
+              name += "</br>";
+            }
+            let indent = "";
+            if (unionObj.field_types.length > 1 && opts.wantHtml) {
+              indent = "&nbsp;&nbsp;&nbsp;&nbsp;"
+            }
+            if (opts.indent) {
+              indent = opts.indent + indent;
+            }
+            let unionNode = getAstNode(unionObj.src);
+            let field_end = ",";
+            if (unionObj.field_types.length > 1 && opts.wantHtml) {
+              field_end += "</br>";
+            } else {
+              field_end += " ";
+            }
+            for (let i = 0; i < unionObj.field_types.length; i += 1) {
+              let fieldNode = getAstNode(unionNode.fields[i]);
+              let fieldName = fieldNode.name;
+              let html = indent + escapeHtml(fieldName);
+
+              let fieldTypeExpr = unionObj.field_types[i];
+              html += ": ";
+
+              html += exprName(fieldTypeExpr, { ...opts, indent: indent });
+
+              html += field_end;
+
+              name += html;
+            }
+            if (opts.indent) {
+              name += opts.indent;
+            }
+            name += "}";
+            return name;
           }
           case typeKinds.Opaque: {
             let opaqueObj = typeObj;
@@ -1839,29 +2281,44 @@ var zigAnalysis;
           }
           case typeKinds.Fn: {
             let fnObj = typeObj;
+            let fnDecl = opts.fnDecl;
+            let linkFnNameDecl = opts.linkFnNameDecl;
+            opts.fnDecl = null;
+            opts.linkFnNameDecl = null;
             let payloadHtml = "";
+            if (opts.addParensIfFnSignature && fnObj.src == 0) {
+              payloadHtml += "(";
+            }
+            if (fnObj.is_extern) {
+              if (opts.wantHtml) {
+                payloadHtml += '<span class="tok-kw">extern </span>';
+              } else {
+                payloadHtml += "extern ";
+              }
+            } else if (fnObj.has_cc) {
+              let cc_expr = zigAnalysis.exprs[fnObj.cc];
+              if (cc_expr.enumLiteral === "Inline") {
+                if(opts.wantHtml) {
+                payloadHtml += '<span class="tok-kw">inline </span>'
+                } else {
+                  payloadHtml += "inline "
+                }
+              }
+            }
+            if (fnObj.has_lib_name) {
+              payloadHtml += '"' + fnObj.lib_name + '" ';
+            }
             if (opts.wantHtml) {
-              if (fnObj.is_extern) {
-                payloadHtml += "pub extern ";
-              }
-              if (fnObj.has_lib_name) {
-                payloadHtml += '"' + fnObj.lib_name + '" ';
-              }
-              payloadHtml += '<span class="tok-kw">fn</span>';
-              if (opts.fnDecl) {
-                payloadHtml += ' <span class="tok-fn">';
-                if (opts.linkFnNameDecl) {
+              payloadHtml += '<span class="tok-kw">fn </span>';
+              if (fnDecl) {
+                payloadHtml += '<span class="tok-fn">';
+                if (linkFnNameDecl) {
                   payloadHtml +=
-                    '<a href="' +
-                    opts.linkFnNameDecl +
-                    '">' +
-                    escapeHtml(opts.fnDecl.name) +
+                    '<a href="' + linkFnNameDecl + '">' +
+                    escapeHtml(fnDecl.name) +
                     "</a>";
                 } else {
-                  payloadHtml += escapeHtml(opts.fnDecl.name);
-                  payloadHtml = "<a target=\"_blank\" href=\"" +
-                    sourceFileLink(opts.fnDecl) + "\">" +
-                    escapeHtml(opts.fnDecl.name) + "</a>";
+                  payloadHtml += escapeHtml(fnDecl.name);
                 }
                 payloadHtml += "</span>";
               }
@@ -1872,17 +2329,21 @@ var zigAnalysis;
             if (fnObj.params) {
               let fields = null;
               let isVarArgs = false;
-              let fnNode = getAstNode(fnObj.src);
-              fields = fnNode.fields;
-              isVarArgs = fnNode.varArgs;
+              if (fnObj.src != 0) {
+                let fnNode = getAstNode(fnObj.src);
+                fields = fnNode.fields;
+                isVarArgs = fnNode.varArgs;
+              }
 
               for (let i = 0; i < fnObj.params.length; i += 1) {
                 if (i != 0) {
                   payloadHtml += ", ";
                 }
 
-                payloadHtml +=
-                  "<span class='argBreaker'><br>&nbsp;&nbsp;&nbsp;&nbsp;</span>";
+                if (opts.wantHtml) {
+                  payloadHtml +=
+                    "<span class='argBreaker'><br>&nbsp;&nbsp;&nbsp;&nbsp;</span>";
+                }
                 let value = fnObj.params[i];
                 let paramValue = resolveValue({ expr: value });
 
@@ -1922,79 +2383,20 @@ var zigAnalysis;
                 if (isVarArgs && i === fnObj.params.length - 1) {
                   payloadHtml += "...";
                 } else if ("alignOf" in value) {
-                  if (opts.wantHtml) {
-                    payloadHtml += '<a href="">';
-                    payloadHtml +=
-                      '<span class="tok-kw" style="color:lightblue;">' +
-                      exprName(value, opts) +
-                      "</span>";
-                    payloadHtml += "</a>";
-                  } else {
-                    payloadHtml += exprName(value, opts);
-                  }
+                  payloadHtml += exprName(value, opts);
                 } else if ("typeOf" in value) {
-                  if (opts.wantHtml) {
-                    payloadHtml += '<a href="">';
-                    payloadHtml +=
-                      '<span class="tok-kw" style="color:lightblue;">' +
-                      exprName(value, opts) +
-                      "</span>";
-                    payloadHtml += "</a>";
-                  } else {
-                    payloadHtml += exprName(value, opts);
-                  }
+                  payloadHtml += exprName(value, opts);
                 } else if ("typeOf_peer" in value) {
-                  if (opts.wantHtml) {
-                    payloadHtml += '<a href="">';
-                    payloadHtml +=
-                      '<span class="tok-kw" style="color:lightblue;">' +
-                      exprName(value, opts) +
-                      "</span>";
-                    payloadHtml += "</a>";
-                  } else {
-                    payloadHtml += exprName(value, opts);
-                  }
+                  payloadHtml += exprName(value, opts);
                 } else if ("declRef" in value) {
-                  if (opts.wantHtml) {
-                    payloadHtml += '<a href="">';
-                    payloadHtml +=
-                      '<span class="tok-kw" style="color:lightblue;">' +
-                      exprName(value, opts) +
-                      "</span>";
-                    payloadHtml += "</a>";
-                  } else {
-                    payloadHtml += exprName(value, opts);
-                  }
+                  payloadHtml += exprName(value, opts);
                 } else if ("call" in value) {
-                  if (opts.wantHtml) {
-                    payloadHtml += '<a href="">';
-                    payloadHtml +=
-                      '<span class="tok-kw" style="color:lightblue;">' +
-                      exprName(value, opts) +
-                      "</span>";
-                    payloadHtml += "</a>";
-                  } else {
-                    payloadHtml += exprName(value, opts);
-                  }
+                  payloadHtml += exprName(value, opts);
                 } else if ("refPath" in value) {
-                  if (opts.wantHtml) {
-                    payloadHtml += '<a href="">';
-                    payloadHtml +=
-                      '<span class="tok-kw" style="color:lightblue;">' +
-                      exprName(value, opts) +
-                      "</span>";
-                    payloadHtml += "</a>";
-                  } else {
-                    payloadHtml += exprName(value, opts);
-                  }
+                  payloadHtml += exprName(value, opts);
                 } else if ("type" in value) {
-                  let name = exprName(value, {
-                    wantHtml: false,
-                    wantLink: false,
-                    fnDecl: opts.fnDecl,
-                    linkFnNameDecl: opts.linkFnNameDecl,
-                  });
-                  payloadHtml += '<span class="tok-kw">' + name + "</span>";
+                  payloadHtml += exprName(value, opts);
+                  //payloadHtml += '<span class="tok-kw">' + name + "</span>";
                 } else if ("binOpIndex" in value) {
                   payloadHtml += exprName(value, opts);
                 } else if ("comptimeExpr" in value) {
@@ -2014,7 +2416,9 @@ var zigAnalysis;
               }
             }
 
-            payloadHtml += "<span class='argBreaker'>,<br></span>";
+            if (opts.wantHtml) {
+              payloadHtml += "<span class='argBreaker'>,<br></span>";
+            }
             payloadHtml += ") ";
 
             if (fnObj.has_align) {
@@ -2024,7 +2428,9 @@ var zigAnalysis;
             if (fnObj.has_cc) {
               let cc = zigAnalysis.exprs[fnObj.cc];
               if (cc) {
-                payloadHtml += "callconv(." + cc.enumLiteral + ") ";
+                if (cc.enumLiteral !== "Inline") {
+                  payloadHtml += "callconv(" + exprName(cc, opts) + ") ";
+                }
               }
             }
 
@@ -2032,11 +2438,18 @@ var zigAnalysis;
               payloadHtml += "!";
             }
             if (fnObj.ret != null) {
-              payloadHtml += exprName(fnObj.ret, opts);
+              payloadHtml += exprName(fnObj.ret, {
+                ...opts,
+                addParensIfFnSignature: true,
+              });
             } else if (opts.wantHtml) {
               payloadHtml += '<span class="tok-kw">anytype</span>';
             } else {
               payloadHtml += "anytype";
+            }
+
+            if (opts.addParensIfFnSignature && fnObj.src == 0) {
+              payloadHtml += ")";
             }
             return payloadHtml;
           }
@@ -2074,11 +2487,11 @@ var zigAnalysis;
     if (
       rootIsStd &&
       typeObj ===
-      getType(zigAnalysis.packages[zigAnalysis.rootPkg].main)
+      getType(zigAnalysis.modules[zigAnalysis.rootMod].main)
     ) {
       name = "std";
     } else {
-      name = exprName({ type: typeObj }, false, false);
+      name = exprName({ type: typeObj }, { wantHtml: false, wantLink: false });
     }
     if (name != null && name != "") {
       domHdrName.innerText =
@@ -2208,13 +2621,13 @@ var zigAnalysis;
     } else if (
       resolvedValue.expr.string !== undefined ||
       resolvedValue.expr.call !== undefined ||
-      resolvedValue.expr.comptimeExpr
+      resolvedValue.expr.comptimeExpr !== undefined
     ) {
       domFnProtoCode.innerHTML =
         '<span class="tok-kw">const</span> ' +
         escapeHtml(decl.name) +
         ": " +
-        exprName(resolvedValue.expr, { wantHtml: true, wantLink: true }) +
+        exprName(resolvedValue.typeRef !== null ? resolvedValue.typeRef : resolvedValue.expr, { wantHtml: true, wantLink: true }) +
         " = " +
         exprName(decl.value.expr, { wantHtml: true, wantLink: true }) +
         ";";
@@ -2238,7 +2651,10 @@ var zigAnalysis;
 
     let docs = getAstNode(decl.src).docs;
     if (docs != null) {
-      domTldDocs.innerHTML = markdown(docs);
+      // TODO: it shouldn't just be decl.parent_container, but rather 
+      //       the type that the decl holds (if the value is a type)
+      domTldDocs.innerHTML = markdown(docs, getType(decl.parent_container));
+      
       domTldDocs.classList.remove("hidden");
     }
 
@@ -2246,12 +2662,49 @@ var zigAnalysis;
   }
 
   function renderVar(decl) {
-    let declTypeRef = typeOfDecl(decl);
-    domFnProtoCode.innerHTML =
-      '<span class="tok-kw">var</span> ' +
-      escapeHtml(decl.name) +
-      ": " +
-      typeValueName(declTypeRef, true, true);
+    let resolvedVar = resolveValue(decl.value);
+
+    if (resolvedVar.expr.fieldRef) {
+      const declRef = decl.value.expr.refPath[0].declRef;
+      const type = getDecl(declRef);
+      domFnProtoCode.innerHTML =
+        '<span class="tok-kw">var</span> ' +
+        escapeHtml(decl.name) +
+        ": " +
+        type.name +
+        " = " +
+        exprName(decl.value.expr, { wantHtml: true, wantLink: true }) +
+        ";";
+    } else if (
+      resolvedVar.expr.string !== undefined ||
+      resolvedVar.expr.call !== undefined ||
+      resolvedVar.expr.comptimeExpr !== undefined
+    ) {
+      domFnProtoCode.innerHTML =
+        '<span class="tok-kw">var</span> ' +
+        escapeHtml(decl.name) +
+        ": " +
+        exprName(resolvedVar.typeRef !== null ? resolvedVar.typeRef : resolvedVar.expr, { wantHtml: true, wantLink: true }) +
+        " = " +
+        exprName(decl.value.expr, { wantHtml: true, wantLink: true }) +
+        ";";
+    } else if (resolvedVar.expr.compileError) {
+      domFnProtoCode.innerHTML =
+        '<span class="tok-kw">var</span> ' +
+        escapeHtml(decl.name) +
+        " = " +
+        exprName(decl.value.expr, { wantHtml: true, wantLink: true }) +
+        ";";
+    } else {
+      domFnProtoCode.innerHTML =
+        '<span class="tok-kw">var</span> ' +
+        escapeHtml(decl.name) +
+        ": " +
+        exprName(resolvedVar.typeRef, { wantHtml: true, wantLink: true }) +
+        " = " +
+        exprName(decl.value.expr, { wantHtml: true, wantLink: true }) +
+        ";";
+    }
 
     let docs = getAstNode(decl.src).docs;
     if (docs != null) {
@@ -2270,7 +2723,8 @@ var zigAnalysis;
     fnsList,
     varsList,
     valsList,
-    testsList
+    testsList,
+    unsList
   ) {
     for (let i = 0; i < decls.length; i += 1) {
       let decl = getDecl(decls[i]);
@@ -2328,14 +2782,20 @@ var zigAnalysis;
           valsList.push(decl);
         }
       }
+
+      if (decl.is_uns) {
+        unsList.push(decl);
+      }
     }
   }
 
   function sourceFileLink(decl) {
-      const srcNode = getAstNode(decl.src);
-      return sourceFileUrlTemplate.
-          replace("{{file}}", zigAnalysis.files[srcNode.file]).
-          replace("{{line}}", srcNode.line + 1);
+    const srcNode = getAstNode(decl.src);
+    const srcFile = getFile(srcNode.file);
+    return sourceFileUrlTemplate.
+      replace("{{mod}}", zigAnalysis.modules[srcFile.modIndex].name).
+      replace("{{file}}", srcFile.name).
+      replace("{{line}}", srcNode.line + 1);
   }
 
   function renderContainer(container) {
@@ -2353,6 +2813,8 @@ var zigAnalysis;
 
     let testsList = [];
 
+    let unsList = [];
+
     categorizeDecls(
       container.pubDecls,
       typesList,
@@ -2361,7 +2823,8 @@ var zigAnalysis;
       fnsList,
       varsList,
       valsList,
-      testsList
+      testsList,
+      unsList
     );
     if (curNav.showPrivDecls)
       categorizeDecls(
@@ -2372,8 +2835,40 @@ var zigAnalysis;
         fnsList,
         varsList,
         valsList,
-        testsList
+        testsList,
+        unsList
       );
+
+    while (unsList.length > 0) {
+      let uns = unsList.shift();
+      let declValue = resolveValue(uns.value);
+      if (!("type" in declValue.expr)) continue;
+      let uns_container = getType(declValue.expr.type);
+      if (!isContainerType(uns_container)) continue;
+      categorizeDecls(
+        uns_container.pubDecls,
+        typesList,
+        namespacesList,
+        errSetsList,
+        fnsList,
+        varsList,
+        valsList,
+        testsList,
+        unsList
+      );
+      if (curNav.showPrivDecls)
+        categorizeDecls(
+          uns_container.privDecls,
+          typesList,
+          namespacesList,
+          errSetsList,
+          fnsList,
+          varsList,
+          valsList,
+          testsList,
+          unsList
+        );
+    }
 
     typesList.sort(byNameProperty);
     namespacesList.sort(byNameProperty);
@@ -2386,17 +2881,16 @@ var zigAnalysis;
     if (container.src != null) {
       let docs = getAstNode(container.src).docs;
       if (docs != null) {
-        domTldDocs.innerHTML = markdown(docs);
+        domTldDocs.innerHTML = markdown(docs, container);
         domTldDocs.classList.remove("hidden");
       }
     }
 
     if (typesList.length !== 0) {
-      window.x = typesList;
       resizeDomList(
         domListTypes,
         typesList.length,
-        '<li><a href="#"></a></li>'
+        '<li><a href=""></a></li>'
       );
       for (let i = 0; i < typesList.length; i += 1) {
         let liDom = domListTypes.children[i];
@@ -2467,9 +2961,19 @@ var zigAnalysis;
 
         let docs = getAstNode(decl.src).docs;
         if (docs != null) {
-          tdDesc.innerHTML = shortDescMarkdown(docs);
+          docs = docs.trim();
+          var short = shortDesc(docs);
+          if (short != docs) {
+            short = markdown(short, container);
+            var long = markdown(docs, container); // TODO: this needs to be the file top lvl struct
+            tdDesc.innerHTML =
+              "<div class=\"expand\" ><span class=\"button\" onclick=\"toggleExpand(event)\"></span><div class=\"sum-less\">" + short + "</div>" + "<div class=\"sum-more\">" + long + "</div></details>";
+          }
+          else {
+            tdDesc.innerHTML = markdown(short, container);
+          }
         } else {
-          tdDesc.textContent = "";
+          tdDesc.innerHTML = "<p><i>No documentation provided.</i><p>";
         }
       }
       domSectFns.classList.remove("hidden");
@@ -2494,15 +2998,25 @@ var zigAnalysis;
           escapeHtml(fieldName);
 
         if (container.kind === typeKinds.Enum) {
-          html += ' = <span class="tok-number">' + fieldName + "</span>";
+          let value = container.values[i];
+          if (value !== null) {
+            html += " = " + exprName(value, { wantHtml: true, wantLink: true });
+          }
         } else {
-          let fieldTypeExpr = container.fields[i];
-          html += ": ";
-          let name = exprName(fieldTypeExpr, false, false);
-          html += '<span class="tok-kw">' + name + "</span>";
+          let fieldTypeExpr = container.field_types[i];
+          if (container.kind !== typeKinds.Struct || !container.is_tuple) {
+            html += ": ";
+          }
+          html += exprName(fieldTypeExpr, { wantHtml: true, wantLink: true });
           let tsn = typeShorthandName(fieldTypeExpr);
           if (tsn) {
             html += "<span> (" + tsn + ")</span>";
+          }
+          if (container.kind === typeKinds.Struct && !container.is_tuple) {
+            let defaultInitExpr = container.field_defaults[i];
+            if (defaultInitExpr !== null) {
+              html += " = " + exprName(defaultInitExpr, { wantHtml: true, wantLink: true });
+            }
           }
         }
 
@@ -2534,7 +3048,10 @@ var zigAnalysis;
         tdNameA.setAttribute("href", navLinkDecl(decl.name));
         tdNameA.textContent = decl.name;
 
-        tdType.innerHTML = typeValueName(typeOfDecl(decl), true, true);
+        tdType.innerHTML = exprName(walkResultTypeRef(decl.value), {
+          wantHtml: true,
+          wantLink: true,
+        });
 
         let docs = getAstNode(decl.src).docs;
         if (docs != null) {
@@ -2624,14 +3141,14 @@ var zigAnalysis;
   }
 
   function detectRootIsStd() {
-    let rootPkg = zigAnalysis.packages[zigAnalysis.rootPkg];
-    if (rootPkg.table["std"] == null) {
-      // no std mapped into the root package
+    let rootMod = zigAnalysis.modules[zigAnalysis.rootMod];
+    if (rootMod.table["std"] == null) {
+      // no std mapped into the root module
       return false;
     }
-    let stdPkg = zigAnalysis.packages[rootPkg.table["std"]];
-    if (stdPkg == null) return false;
-    return rootPkg.file === stdPkg.file;
+    let stdMod = zigAnalysis.modules[rootMod.table["std"]];
+    if (stdMod == null) return false;
+    return rootMod.file === stdMod.file;
   }
 
   function indexTypeKinds() {
@@ -2660,7 +3177,6 @@ var zigAnalysis;
       "Enum",
       "Union",
       "Fn",
-      "BoundFn",
       "Opaque",
       "Frame",
       "AnyFrame",
@@ -2683,38 +3199,66 @@ var zigAnalysis;
     throw new Error("No type 'type' found");
   }
 
+
   function updateCurNav() {
     curNav = {
-      showPrivDecls: false,
-      pkgNames: [],
-      pkgObjs: [],
+      mode: NAV_MODES.API,
+      modNames: [],
+      modObjs: [],
       declNames: [],
       declObjs: [],
       callName: null,
     };
     curNavSearch = "";
 
-    if (location.hash[0] === "#" && location.hash.length > 1) {
-      let query = location.hash.substring(1);
-      if (query[0] === "*") {
-        curNav.showPrivDecls = true;
-        query = query.substring(1);
-      }
+    const mode = location.hash.substring(0, 3);
+    let query = location.hash.substring(3);
 
-      let qpos = query.indexOf("?");
-      let nonSearchPart;
-      if (qpos === -1) {
-        nonSearchPart = query;
-      } else {
-        nonSearchPart = query.substring(0, qpos);
-        curNavSearch = decodeURIComponent(query.substring(qpos + 1));
-      }
+    let qpos = query.indexOf("?");
+    let nonSearchPart;
+    if (qpos === -1) {
+      nonSearchPart = query;
+    } else {
+      nonSearchPart = query.substring(0, qpos);
+      curNavSearch = decodeURIComponent(query.substring(qpos + 1));
+    }
 
-      let parts = nonSearchPart.split(";");
-      curNav.pkgNames = decodeURIComponent(parts[0]).split(".");
-      if (parts[1] != null) {
-        curNav.declNames = decodeURIComponent(parts[1]).split(".");
-      }
+    const DEFAULT_HASH = NAV_MODES.API + zigAnalysis.modules[zigAnalysis.rootMod].name;
+    switch (mode) {
+      case NAV_MODES.API:
+        // #A;MODULE:decl.decl.decl?search-term
+        curNav.mode = mode;
+
+        let parts = nonSearchPart.split(":");
+        if (parts[0] == "") {
+          location.hash = DEFAULT_HASH;
+        } else {
+          curNav.modNames = decodeURIComponent(parts[0]).split(".");
+        }
+
+        if (parts[1] != null) {
+          curNav.declNames = decodeURIComponent(parts[1]).split(".");
+        }
+
+        return;
+      case NAV_MODES.GUIDES:
+        
+        const sections = zigAnalysis.guide_sections;
+        if (sections.length != 0 && sections[0].guides.length != 0 && nonSearchPart == "") {
+          location.hash = NAV_MODES.GUIDES + sections[0].guides[0].name;
+          if (qpos != -1) {
+            location.hash += query.substring(qpos);
+          }
+          return;
+        }
+
+        curNav.mode = mode;
+        curNav.activeGuide = nonSearchPart;
+
+        return;
+      default:
+        location.hash = DEFAULT_HASH;
+        return;
     }
   }
 
@@ -2734,68 +3278,106 @@ var zigAnalysis;
     }
   }
 
-  function findSubDecl(parentType, childName) {
+  function findSubDecl(parentTypeOrDecl, childName) {
+    let parentType = parentTypeOrDecl;
     {
-      // Generic functions
+      // Generic functions / resolving decls
       if ("value" in parentType) {
         const rv = resolveValue(parentType.value);
         if ("type" in rv.expr) {
           const t = getType(rv.expr.type);
+          parentType = t;
           if (t.kind == typeKinds.Fn && t.generic_ret != null) {
-            const rgr = resolveValue({ expr: t.generic_ret });
-            if ("type" in rgr.expr) {
-              parentType = getType(rgr.expr.type);
+            let resolvedGenericRet = resolveValue({ expr: t.generic_ret });
+
+            if ("call" in resolvedGenericRet.expr) {
+              let call = zigAnalysis.calls[resolvedGenericRet.expr.call];
+              let resolvedFunc = resolveValue({ expr: call.func });
+              if (!("type" in resolvedFunc.expr)) return null;
+              let callee = getType(resolvedFunc.expr.type);
+              if (!callee.generic_ret) return null;
+              resolvedGenericRet = resolveValue({ expr: callee.generic_ret });
+            }
+
+            if ("type" in resolvedGenericRet.expr) {
+              parentType = getType(resolvedGenericRet.expr.type);
             }
           }
         }
       }
     }
 
-    if (!parentType.pubDecls) return null;
-    for (let i = 0; i < parentType.pubDecls.length; i += 1) {
-      let declIndex = parentType.pubDecls[i];
-      let childDecl = getDecl(declIndex);
-      if (childDecl.name === childName) {
-        return childDecl;
+    if (parentType.pubDecls) {
+      for (let i = 0; i < parentType.pubDecls.length; i += 1) {
+        let declIndex = parentType.pubDecls[i];
+        let childDecl = getDecl(declIndex);
+        if (childDecl.name === childName) {
+          childDecl.find_subdecl_idx = declIndex;
+          return childDecl;
+        } else if (childDecl.is_uns) {
+          let declValue = resolveValue(childDecl.value);
+          if (!("type" in declValue.expr)) continue;
+          let uns_container = getType(declValue.expr.type);
+          let uns_res = findSubDecl(uns_container, childName);
+          if (uns_res !== null) return uns_res;
+        }
       }
     }
-    if (!parentType.privDecls) return null;
-    for (let i = 0; i < parentType.privDecls.length; i += 1) {
-      let declIndex = parentType.privDecls[i];
-      let childDecl = getDecl(declIndex);
-      if (childDecl.name === childName) {
-        return childDecl;
+
+    if (parentType.privDecls) {
+      for (let i = 0; i < parentType.privDecls.length; i += 1) {
+        let declIndex = parentType.privDecls[i];
+        let childDecl = getDecl(declIndex);
+        if (childDecl.name === childName) {
+          childDecl.find_subdecl_idx = declIndex;
+          childDecl.is_private = true;
+          return childDecl;
+        } else if (childDecl.is_uns) {
+          let declValue = resolveValue(childDecl.value);
+          if (!("type" in declValue.expr)) continue;
+          let uns_container = getType(declValue.expr.type);
+          let uns_res = findSubDecl(uns_container, childName);
+          uns_res.is_private = true;
+          if (uns_res !== null) return uns_res;
+        }
       }
     }
+
     return null;
   }
 
-  function computeCanonicalPackagePaths() {
-    let list = new Array(zigAnalysis.packages.length);
-    // Now we try to find all the packages from root.
-    let rootPkg = zigAnalysis.packages[zigAnalysis.rootPkg];
+  function computeCanonicalModulePaths() {
+    let list = new Array(zigAnalysis.modules.length);
+    // Now we try to find all the modules from root.
+    let rootMod = zigAnalysis.modules[zigAnalysis.rootMod];
     // Breadth-first to keep the path shortest possible.
     let stack = [
       {
         path: [],
-        pkg: rootPkg,
+        mod: rootMod,
       },
     ];
     while (stack.length !== 0) {
       let item = stack.shift();
-      for (let key in item.pkg.table) {
-        let childPkgIndex = item.pkg.table[key];
-        if (list[childPkgIndex] != null) continue;
-        let childPkg = zigAnalysis.packages[childPkgIndex];
-        if (childPkg == null) continue;
+      for (let key in item.mod.table) {
+        let childModIndex = item.mod.table[key];
+        if (list[childModIndex] != null) continue;
+        let childMod = zigAnalysis.modules[childModIndex];
+        if (childMod == null) continue;
 
         let newPath = item.path.concat([key]);
-        list[childPkgIndex] = newPath;
+        list[childModIndex] = newPath;
         stack.push({
           path: newPath,
-          pkg: childPkg,
+          mod: childMod,
         });
       }
+    }
+
+    for (let i = 0; i < zigAnalysis.modules.length; i += 1) {
+      const p = zigAnalysis.modules[i];
+      // TODO
+      // declSearchIndex.add(p.name, {moduleId: i});
     }
     return list;
   }
@@ -2804,16 +3386,16 @@ var zigAnalysis;
     let list = new Array(zigAnalysis.decls.length);
     canonTypeDecls = new Array(zigAnalysis.types.length);
 
-    for (let pkgI = 0; pkgI < zigAnalysis.packages.length; pkgI += 1) {
-      if (pkgI === zigAnalysis.rootPkg && rootIsStd) continue;
-      let pkg = zigAnalysis.packages[pkgI];
-      let pkgNames = canonPkgPaths[pkgI];
-      if (pkgNames === undefined) continue;
+    for (let modI = 0; modI < zigAnalysis.modules.length; modI += 1) {
+      let mod = zigAnalysis.modules[modI];
+      let modNames = canonModPaths[modI];
+      if (modNames === undefined) continue;
 
       let stack = [
         {
           declNames: [],
-          type: getType(pkg.main),
+          declIndexes: [],
+          type: getType(mod.main),
         },
       ];
       while (stack.length !== 0) {
@@ -2824,49 +3406,90 @@ var zigAnalysis;
 
           let len = t.pubDecls ? t.pubDecls.length : 0;
           for (let declI = 0; declI < len; declI += 1) {
-            let mainDeclIndex = t.pubDecls[declI];
-            if (list[mainDeclIndex] != null) continue;
+            let declIndex = t.pubDecls[declI];
+            if (list[declIndex] != null) continue;
 
-            let decl = getDecl(mainDeclIndex);
-            let declVal = resolveValue(decl.value);
-            let declNames = item.declNames.concat([decl.name]);
-            list[mainDeclIndex] = {
-              pkgNames: pkgNames,
-              declNames: declNames,
-            };
-            if ("type" in declVal.expr) {
-              let value = getType(declVal.expr.type);
-              if (declCanRepresentTypeKind(value.kind)) {
-                canonTypeDecls[declVal.type] = mainDeclIndex;
-              }
-
-              if (isContainerType(value)) {
-                stack.push({
-                  declNames: declNames,
-                  type: value,
-                });
-              }
-
-              // Generic function
-              if (value.kind == typeKinds.Fn && value.generic_ret != null) {
-                let resolvedVal = resolveValue({ expr: value.generic_ret });
-                if ("type" in resolvedVal.expr) {
-                  let generic_type = getType(resolvedVal.expr.type);
-                  if (isContainerType(generic_type)) {
-                    stack.push({
-                      declNames: declNames,
-                      type: generic_type,
-                    });
+            let decl = getDecl(declIndex);
+              
+            if (decl.is_uns) {
+              let unsDeclList = [decl];
+              while(unsDeclList.length != 0) {
+                let unsDecl = unsDeclList.pop();
+                let unsDeclVal = resolveValue(unsDecl.value);
+                if (!("type" in unsDeclVal.expr)) continue;
+                let unsType = getType(unsDeclVal.expr.type);
+                if (!isContainerType(unsType)) continue;
+                let unsPubDeclLen = unsType.pubDecls ? unsType.pubDecls.length : 0;
+                for (let unsDeclI = 0; unsDeclI < unsPubDeclLen; unsDeclI += 1) {
+                  let childDeclIndex = unsType.pubDecls[unsDeclI];
+                  let childDecl = getDecl(childDeclIndex);
+                  
+                  if (childDecl.is_uns) {
+                    unsDeclList.push(childDecl);
+                  } else {
+                    addDeclToSearchResults(childDecl, childDeclIndex, modNames, item, list, stack);
                   }
                 }
               }
+            } else {
+              addDeclToSearchResults(decl, declIndex, modNames, item, list, stack);
             }
           }
         }
       }
     }
+    window.cdp = list;
     return list;
   }
+
+function addDeclToSearchResults(decl, declIndex, modNames, item, list, stack) {
+  let declVal = resolveValue(decl.value);
+  let declNames = item.declNames.concat([decl.name]);
+  let declIndexes = item.declIndexes.concat([declIndex]);
+
+  if (list[declIndex] != null) return;
+  list[declIndex] = {
+    modNames: modNames,
+    declNames: declNames,
+    declIndexes: declIndexes,
+  };
+
+  // add to search index
+  {
+    declSearchIndex.add(decl.name, {declIndex});
+  }
+  
+  
+  if ("type" in declVal.expr) {
+    let value = getType(declVal.expr.type);
+    if (declCanRepresentTypeKind(value.kind)) {
+      canonTypeDecls[declVal.type] = declIndex;
+    }
+
+    if (isContainerType(value)) {
+      stack.push({
+        declNames: declNames,
+        declIndexes: declIndexes,
+        type: value,
+      });
+    }
+
+    // Generic function
+    if (typeIsGenericFn(declVal.expr.type)) {
+      let ret = resolveGenericRet(value);
+      if (ret != null && "type" in ret.expr) {
+        let generic_type = getType(ret.expr.type);
+        if (isContainerType(generic_type)) {
+          stack.push({
+            declNames: declNames,
+            declIndexes: declIndexes,
+            type: generic_type,
+          });
+        }
+      }
+    }
+  }
+}
 
   function getCanonDeclPath(index) {
     if (canonDeclPaths == null) {
@@ -2888,7 +3511,7 @@ var zigAnalysis;
     });
   }
 
-  function shortDescMarkdown(docs) {
+  function shortDesc(docs) {
     const trimmed_docs = docs.trim();
     let index = trimmed_docs.indexOf("\n\n");
     let cut = false;
@@ -2904,10 +3527,61 @@ var zigAnalysis;
 
     let slice = trimmed_docs.slice(0, index);
     if (cut) slice += "...";
-    return markdown(slice);
+    return slice;
   }
 
-  function markdown(input) {
+  function shortDescMarkdown(docs) {
+    return markdown(shortDesc(docs));
+  }
+
+  function parseGuides() {
+    for (let j = 0; j < zigAnalysis.guide_sections.length; j+=1){
+      const section = zigAnalysis.guide_sections[j];
+      for (let i = 0; i < section.guides.length; i+=1){
+        let reader = new commonmark.Parser({smart: true});
+        const guide = section.guides[i];
+        const ast = reader.parse(guide.body);        
+        
+        // Find the first text thing to use as a sidebar title
+        guide.title = "[empty guide]";
+        {
+          let walker = ast.walker();
+          let event, node;
+          while ((event = walker.next())) {
+            node = event.node;
+            if (node.type === 'text') {
+              guide.title = node.literal;
+              break;
+            }
+          }        
+        }
+        // Index this guide
+        {
+          let walker = ast.walker();
+          let event, node;
+          while ((event = walker.next())) {
+            node = event.node;
+            if (event.entering == true && node.type === 'text') {
+                indexTextForGuide(j, i, node);          
+            }
+          }        
+        }
+      }  
+    }
+  }
+
+  function indexTextForGuide(section_idx, guide_idx, node){
+    const terms = node.literal.split(" ");
+    for (let i = 0; i < terms.length; i += 1){
+      const t = terms[i];
+      if (!guidesSearchIndex[t]) guidesSearchIndex[t] = new Set();
+      node.guide = {section_idx, guide_idx};
+      guidesSearchIndex[t].add(node);
+    }  
+  }
+  
+
+  function markdown(input, contextType) {
     const raw_lines = input.split("\n"); // zig allows no '\r', so we don't need to split on CR
 
     const lines = [];
@@ -2955,13 +3629,15 @@ var zigAnalysis;
         } else if (line.text.startsWith("#")) {
           line.type = "h1";
           line.text = line.text.substr(1);
-        } else if (line.text.startsWith("-")) {
+        } else if (line.text.match(/^-[ \t]+.*$/)) {
+          // line starts with a hyphen, followed by spaces or tabs
+          const match = line.text.match(/^-[ \t]+/);
           line.type = "ul";
-          line.text = line.text.substr(1);
-        } else if (line.text.match(/^\d+\..*$/)) {
-          // if line starts with {number}{dot}
-          const match = line.text.match(/(\d+)\./);
-          line.type = "ul";
+          line.text = line.text.substr(match[0].length);
+        } else if (line.text.match(/^\d+\.[ \t]+.*$/)) {
+          // line starts with {number}{dot}{spaces or tabs}
+          const match = line.text.match(/(\d+)\.[ \t]+/);
+          line.type = "ol";
           line.text = line.text.substr(match[0].length);
           line.ordered_number = Number(match[1].length);
         } else if (line.text == "```") {
@@ -2990,7 +3666,7 @@ var zigAnalysis;
     // Render HTML from markdown lines.
     // Look at each line and emit fitting HTML code
 
-    function markdownInlines(innerText) {
+    function markdownInlines(innerText, contextType) {
       // inline types:
       // **{INLINE}**       : <strong>
       // __{INLINE}__       : <u>
@@ -3037,6 +3713,10 @@ var zigAnalysis;
       let codetag = "";
       let in_code = false;
 
+      // state used to link decl references
+      let quote_start = undefined;
+      let quote_start_html = undefined;
+
       for (let i = 0; i < innerText.length; i++) {
         if (parsing_code && in_code) {
           if (innerText.substr(i, codetag.length) == codetag) {
@@ -3053,6 +3733,16 @@ var zigAnalysis;
             parsing_code = false;
             innerHTML += "</code>";
             codetag = "";
+
+            // find out if this is a decl that should be linked
+            const maybe_decl_path = innerText.substr(quote_start, i-quote_start);
+            const decl_hash = detectDeclPath(maybe_decl_path, contextType);
+            if (decl_hash) {
+              const anchor_opening_tag = "<a href='"+ decl_hash +"'>";
+              innerHTML = innerHTML.slice(0, quote_start_html) 
+                + anchor_opening_tag
+                + innerHTML.slice(quote_start_html) + "</a>";
+            }
           } else {
             currentRun += innerText[i];
           }
@@ -3062,6 +3752,8 @@ var zigAnalysis;
         if (innerText[i] == "`") {
           flushRun();
           if (!parsing_code) {
+            quote_start = i + 1;
+            quote_start_html = innerHTML.length;
             innerHTML += "<code>";
           }
           parsing_code = true;
@@ -3101,12 +3793,84 @@ var zigAnalysis;
       }
       flushRun();
 
+      if (in_code) {
+        in_code = false;
+        parsing_code = false;
+        innerHTML += "</code>";
+        codetag = "";
+      }
+
       while (stack.length > 0) {
         const fmt = stack.pop();
         innerHTML += "</" + fmt.tag + ">";
       }
 
       return innerHTML;
+    }
+
+    function detectDeclPath(text, context) {
+      let result = "";
+      let separator = ":";
+      const components = text.split(".");
+      let curDeclOrType = undefined;
+      
+      let curContext = context;
+      let limit = 10000;
+      while (curContext) {
+        limit -= 1;
+        
+        if (limit == 0) {
+          throw "too many iterations";
+        }
+        
+        curDeclOrType = findSubDecl(curContext, components[0]);
+        
+        if (!curDeclOrType) {
+          if (curContext.parent_container == null) break;
+          curContext = getType(curContext.parent_container);
+          continue;
+        }
+
+        if (curContext == context) {
+          separator = '.';
+          result = location.hash + separator + components[0];
+        } else {
+          // We had to go up, which means we need a new path!
+          const canonPath = getCanonDeclPath(curDeclOrType.find_subdecl_idx);
+          if (!canonPath) return;
+          
+          let lastModName = canonPath.modNames[canonPath.modNames.length - 1];
+          let fullPath = lastModName + ":" + canonPath.declNames.join(".");
+        
+          separator = '.';
+          result = "#A;" + fullPath;
+        }
+
+        break;
+      } 
+
+      if (!curDeclOrType) {
+        for (let i = 0; i < zigAnalysis.modules.length; i += 1){
+          const p = zigAnalysis.modules[i];
+          if (p.name == components[0]) {
+            curDeclOrType = getType(p.main);
+            result += "#A;" + components[0];
+            break;
+          }
+        }
+      }
+
+      if (!curDeclOrType) return null;
+      
+      for (let i = 1; i < components.length; i += 1) {
+        curDeclOrType = findSubDecl(curDeclOrType, components[i]);
+        if (!curDeclOrType) return null;
+        result += separator + components[i];
+        separator = '.';
+      }
+
+      return result;
+      
     }
 
     function previousLineIs(type, line_no) {
@@ -3156,7 +3920,7 @@ var zigAnalysis;
             "<" +
             line.type +
             ">" +
-            markdownInlines(line.text) +
+            markdownInlines(line.text, contextType) +
             "</" +
             line.type +
             ">\n";
@@ -3165,16 +3929,16 @@ var zigAnalysis;
         case "ul":
         case "ol":
           if (
-            !previousLineIs("ul", line_no) ||
+            !previousLineIs(line.type, line_no) ||
             getPreviousLineIndent(line_no) < line.indent
           ) {
             html += "<" + line.type + ">\n";
           }
 
-          html += "<li>" + markdownInlines(line.text) + "</li>\n";
+          html += "<li>" + markdownInlines(line.text, contextType) + "</li>\n";
 
           if (
-            !nextLineIs("ul", line_no) ||
+            !nextLineIs(line.type, line_no) ||
             getNextLineIndent(line_no) < line.indent
           ) {
             html += "</" + line.type + ">\n";
@@ -3185,7 +3949,7 @@ var zigAnalysis;
           if (!previousLineIs("p", line_no)) {
             html += "<p>\n";
           }
-          html += markdownInlines(line.text) + "\n";
+          html += markdownInlines(line.text, contextType) + "\n";
           if (!nextLineIs("p", line_no)) {
             html += "</p>\n";
           }
@@ -3239,6 +4003,7 @@ var zigAnalysis;
       startSearch();
     }
   }
+  
 
   function onSearchKeyDown(ev) {
     switch (getKeyString(ev)) {
@@ -3270,13 +4035,15 @@ var zigAnalysis;
         ev.stopPropagation();
         return;
       default:
-        if (ev.shiftKey || ev.ctrlKey || ev.altKey) return;
-
-        curSearchIndex = -1;
+        // Search is triggered via an `input` event handler, not on arbitrary `keydown` events.
         ev.stopPropagation();
-        startAsyncSearch();
         return;
     }
+  }
+
+  function onSearchInput(ev) {
+    curSearchIndex = -1;
+    startAsyncSearch();
   }
 
   function moveSearchCursor(dir) {
@@ -3348,9 +4115,16 @@ var zigAnalysis;
         }
         break;
       case "?":
-        ev.preventDefault();
-        ev.stopPropagation();
-        showHelpModal();
+        if (!canToggleHelpModal) break;
+
+        // toggle the help modal
+        if (!domHelpModal.classList.contains("hidden")) {
+            onEscape(ev);
+        } else {
+            ev.preventDefault();
+            ev.stopPropagation();
+            showHelpModal();
+        }
         break;
     }
   }
@@ -3380,16 +4154,207 @@ var zigAnalysis;
     clearAsyncSearch();
     let oldHash = location.hash;
     let parts = oldHash.split("?");
-    let newPart2 = domSearch.value === "" ? "" : "?" + domSearch.value;
+    // TODO: make a tooltip that shows the user that we've replaced their dots
+    let box_text = domSearch.value.replaceAll(".", " ");
+    let newPart2 = box_text === "" ? "" : "?" + box_text;
     location.replace(parts.length === 1 ? oldHash + newPart2 : parts[0] + newPart2);
   }
   function getSearchTerms() {
     let list = curNavSearch.trim().split(/[ \r\n\t]+/);
-    list.sort();
     return list;
   }
 
-  function renderSearch() {
+  function renderSearchGuides() {
+    const searchTrimmed = false;
+    let ignoreCase = curNavSearch.toLowerCase() === curNavSearch;
+    
+    let terms = getSearchTerms();
+    let matchedItems = new Set();
+
+    for (let i = 0; i < terms.length; i += 1) {
+      const nodes = guidesSearchIndex[terms[i]];
+      if (nodes) {
+        for (const n of nodes) {      
+          matchedItems.add(n);
+        }
+      }
+    }
+
+    
+    
+    if (matchedItems.size !== 0) {
+      // Build up the list of search results
+      let matchedItemsHTML = "";
+
+      for (const node of matchedItems) {
+        const text = node.literal;
+        const href = "";
+
+        matchedItemsHTML += "<li><a href=\"" + href + "\">" + text + "</a></li>";
+      }
+
+      // Replace the search results using our newly constructed HTML string
+      domListSearchResults.innerHTML = matchedItemsHTML;
+      if (searchTrimmed) {
+        domSectSearchAllResultsLink.classList.remove("hidden");
+      }
+      renderSearchCursor();
+
+      domSectSearchResults.classList.remove("hidden");
+    } else {
+      domSectSearchNoResults.classList.remove("hidden");
+    }
+  }
+
+  function renderSearchAPI(){
+    if (canonDeclPaths == null) {
+      canonDeclPaths = computeCanonDeclPaths();
+    }
+    let declSet = new Set();
+    let otherDeclSet = new Set(); // for low quality results
+    let declScores = {};
+    
+    let ignoreCase = curNavSearch.toLowerCase() === curNavSearch;
+    let term_list = getSearchTerms();
+    for (let i = 0; i < term_list.length; i += 1) {
+      let term = term_list[i];
+      let result = declSearchIndex.search(term.toLowerCase());
+      if (result == null) {
+        domSectSearchNoResults.classList.remove("hidden");
+        domSectSearchResults.classList.add("hidden");
+        return;
+      }
+
+      let termSet = new Set();
+      let termOtherSet = new Set();
+
+      for (let list of [result.full, result.partial]) {
+        for (let r of list) {
+          const d = r.declIndex;
+          const decl = getDecl(d);
+          const canonPath = getCanonDeclPath(d);
+
+          // collect unconditionally for the first term
+          if (i == 0) {
+            declSet.add(d);
+          } else {
+            // path intersection for subsequent terms
+            let found = false;
+            for (let p of canonPath.declIndexes) {
+              if (declSet.has(p)) {
+                found = true;
+                break;
+              }   
+            }
+            if (!found) {
+              otherDeclSet.add(d);
+            } else {
+              termSet.add(d);
+            }
+          }
+          
+          if (declScores[d] == undefined) declScores[d] = 0;
+        
+          // scores (lower is better)
+          let decl_name = decl.name;
+          if (ignoreCase) decl_name = decl_name.toLowerCase();
+
+          // shallow path are preferable
+          const path_depth = canonPath.declNames.length * 50;
+          // matching the start of a decl name is good
+          const match_from_start = decl_name.startsWith(term) ? -term.length * (1 -ignoreCase) : (decl_name.length - term.length) + 1; 
+          // being a perfect match is good
+          const is_full_match = (list == result.full) ? -decl_name.length * (2 - ignoreCase) : decl_name.length - term.length;
+          // matching the end of a decl name is good
+          const matches_the_end = decl_name.endsWith(term) ? -term.length * (1 - ignoreCase) : (decl_name.length - term.length) + 1;
+          // explicitly penalizing scream case decls
+          const decl_is_scream_case = decl.name.toUpperCase() != decl.name ? 0 : decl.name.length;  
+        
+          const score =  path_depth 
+            + match_from_start 
+            + is_full_match 
+            + matches_the_end 
+            + decl_is_scream_case;
+
+          declScores[d] += score;        
+        }
+      }
+      if (i != 0) {
+        for (let d of declSet) {
+          if (termSet.has(d)) continue;
+          let found = false;
+          for (let p of getCanonDeclPath(d).declIndexes) {
+            if (termSet.has(p) || otherDeclSet.has(p)) {
+              found = true;
+              break;
+            }   
+          }
+          if (found) {
+            declScores[d] = declScores[d] / term_list.length;
+          }
+          
+          termOtherSet.add(d);
+        }
+        declSet = termSet;
+        for (let d of termOtherSet) {
+          otherDeclSet.add(d);
+        }
+        
+      }
+    }
+
+    let matchedItems = {
+      high_quality: [],
+      low_quality: [],
+    };
+    for (let idx of declSet) {
+      matchedItems.high_quality.push({points: declScores[idx], declIndex: idx})
+    }
+    for (let idx of otherDeclSet) {
+      matchedItems.low_quality.push({points: declScores[idx], declIndex: idx})
+    }
+    
+    matchedItems.high_quality.sort(function (a, b) {
+      let cmp = operatorCompare(a.points, b.points);
+      return cmp;
+    });
+    matchedItems.low_quality.sort(function (a, b) {
+      let cmp = operatorCompare(a.points, b.points);
+      return cmp;
+    });
+    
+    // Build up the list of search results
+    let matchedItemsHTML = "";
+
+    for (let list of [matchedItems.high_quality, matchedItems.low_quality]) {
+      if (list == matchedItems.low_quality && list.length > 0) {
+        matchedItemsHTML += "<hr class='other-results'>"
+      }
+      for (let result of list) {
+        const points = result.points;
+        const match = result.declIndex;
+
+        let canonPath = getCanonDeclPath(match);
+        if (canonPath == null) continue;
+
+        let lastModName = canonPath.modNames[canonPath.modNames.length - 1];
+        let text = lastModName + "." + canonPath.declNames.join(".");
+      
+
+        const href = navLink(canonPath.modNames, canonPath.declNames);
+
+        matchedItemsHTML += "<li><a href=\"" + href + "\">" +  text + "</a></li>";
+      }
+    }
+
+    // Replace the search results using our newly constructed HTML string
+    domListSearchResults.innerHTML = matchedItemsHTML;
+    renderSearchCursor();
+
+    domSectSearchResults.classList.remove("hidden");
+  }
+   
+  function renderSearchAPIOld() {
     let matchedItems = [];
     let ignoreCase = curNavSearch.toLowerCase() === curNavSearch;
     let terms = getSearchTerms();
@@ -3403,9 +4368,9 @@ var zigAnalysis;
       if (canonPath == null) continue;
 
       let decl = getDecl(declIndex);
-      let lastPkgName = canonPath.pkgNames[canonPath.pkgNames.length - 1];
+      let lastModName = canonPath.modNames[canonPath.modNames.length - 1];
       let fullPathSearchText =
-        lastPkgName + "." + canonPath.declNames.join(".");
+        lastModName + "." + canonPath.declNames.join(".");
       let astNode = getAstNode(decl.src);
       let fileAndDocs = ""; //zigAnalysis.files[astNode.file];
       // TODO: understand what this piece of code is trying to achieve
@@ -3461,7 +4426,7 @@ var zigAnalysis;
       });
 
       let searchTrimmed = false;
-      const searchTrimResultsMaxItems = 200;
+      const searchTrimResultsMaxItems = 60;
       if (searchTrimResults && matchedItems.length > searchTrimResultsMaxItems) {
         matchedItems = matchedItems.slice(0, searchTrimResultsMaxItems);
         searchTrimmed = true;
@@ -3472,10 +4437,10 @@ var zigAnalysis;
 
       for (let i = 0; i < matchedItems.length; i += 1) {
         const match = matchedItems[i];
-        const lastPkgName = match.path.pkgNames[match.path.pkgNames.length - 1];
+        const lastModName = match.path.modNames[match.path.modNames.length - 1];
 
-        const text = lastPkgName + "." + match.path.declNames.join(".");
-        const href = navLink(match.path.pkgNames, match.path.declNames);
+        const text = lastModName + "." + match.path.declNames.join(".");
+        const href = navLink(match.path.modNames, match.path.declNames);
 
         matchedItemsHTML += "<li><a href=\"" + href + "\">" + text + "</a></li>";
       }
@@ -3531,6 +4496,8 @@ var zigAnalysis;
       src: decl[2],
       value: decl[3],
       decltest: decl[4],
+      is_uns: decl[5],
+      parent_container: decl[6],
     };
   }
 
@@ -3545,6 +4512,14 @@ var zigAnalysis;
       docs: ast[5],
       fields: ast[6],
       comptime: ast[7],
+    };
+  }
+
+  function getFile(idx) {
+    const file = zigAnalysis.files[idx];
+    return {
+      name: file[0],
+      modIndex: file[1],
     };
   }
 
@@ -3595,9 +4570,13 @@ var zigAnalysis;
           src: ty[2],
           privDecls: ty[3],
           pubDecls: ty[4],
-          fields: ty[5],
-          line_number: ty[6],
-          outer_decl: ty[7],
+          field_types: ty[5],
+          field_defaults: ty[6],
+          backing_int: ty[7],
+          is_tuple: ty[8],
+          line_number: ty[9],
+          parent_container: ty[10],
+          layout: ty[11],
         };
       case 10: // ComptimeExpr
       case 11: // ComptimeFloat
@@ -3635,6 +4614,10 @@ var zigAnalysis;
           src: ty[2],
           privDecls: ty[3],
           pubDecls: ty[4],
+          tag: ty[5],
+          values: ty[6],
+          nonexhaustive: ty[7],
+          parent_container: ty[8],
         };
       case 20: // Union
         return {
@@ -3643,7 +4626,11 @@ var zigAnalysis;
           src: ty[2],
           privDecls: ty[3],
           pubDecls: ty[4],
-          fields: ty[5],
+          field_types: ty[5],
+          tag: ty[6],
+          auto_tag: ty[7],
+          parent_container: ty[8],
+          layout: ty[9],
         };
       case 21: // Fn
         return {
@@ -3673,6 +4660,7 @@ var zigAnalysis;
           src: ty[2],
           privDecls: ty[3],
           pubDecls: ty[4],
+          parent_container: ty[5],
         };
       case 24: // Frame
       case 25: // AnyFrame
@@ -3684,5 +4672,263 @@ var zigAnalysis;
 
 })();
 
+function toggleExpand(event) {
+  const parent = event.target.parentElement;
+  parent.toggleAttribute("open");
+
+  if (!parent.open && parent.getBoundingClientRect().top < 0) {
+    parent.parentElement.parentElement.scrollIntoView(true);
+  }
+}
+
+function RadixTree() {
+  this.root = null;
+
+  RadixTree.prototype.search = function (query) {
+    return this.root.search(query);
+    
+  }
+
+  RadixTree.prototype.add = function (declName, value) {
+    if (this.root == null) {
+      this.root = new Node(declName.toLowerCase(), null, [value]);
+    } else {
+      this.root.add(declName.toLowerCase(), value);
+    }
+
+    const not_scream_case = declName.toUpperCase() != declName;
+    let found_separator = false;
+    for (let i = 1; i < declName.length; i +=1) {
+      if (declName[i] == '_' || declName[i] == '.') {
+        found_separator = true;
+        continue;
+      }
 
 
+      if (found_separator || (declName[i].toLowerCase() !== declName[i])) {
+        if (declName.length > i+1 
+          && declName[i+1].toLowerCase() != declName[i+1]) continue;
+        let suffix = declName.slice(i);
+        this.root.add(suffix.toLowerCase(), value);
+        found_separator = false;
+      }
+    }
+  }
+  
+  function Node(labels, next, values) {
+    this.labels = labels; 
+    this.next = next;
+    this.values = values;
+  }
+
+  Node.prototype.isCompressed = function () {
+    return !Array.isArray(this.next);
+  }
+
+  Node.prototype.search = function (word) {
+    let full_matches = [];
+    let partial_matches = [];
+    let subtree_root = null;
+    
+    let cn = this;
+    char_loop: for (let i = 0; i < word.length;) {
+      if (cn.isCompressed()) {
+        for (let j = 0; j < cn.labels.length; j += 1) {
+          let current_idx = i+j;
+
+          if (current_idx == word.length) {
+            partial_matches = cn.values;
+            subtree_root = cn.next;
+            break char_loop; 
+          }
+          
+          if (word[current_idx] != cn.labels[j]) return null;
+        }
+
+        // the full label matched
+        let new_idx = i + cn.labels.length;
+        if (new_idx == word.length) {
+          full_matches = cn.values;
+          subtree_root = cn.next;
+          break char_loop;
+        }
+        
+        
+        i = new_idx;
+        cn = cn.next;
+        continue;
+      } else {
+        for (let j = 0; j < cn.labels.length; j += 1) {
+          if (word[i] == cn.labels[j]) {
+            if (i == word.length - 1) { 
+              full_matches = cn.values[j];
+              subtree_root = cn.next[j];
+              break char_loop;
+            }
+              
+            let next = cn.next[j];
+            if (next == null) return null;
+            cn = next;
+            i += 1;
+            continue char_loop; 
+          } 
+        }
+        
+        // didn't find a match
+        return null;
+      }
+    }
+    
+    // Match was found, let's collect all other 
+    // partial matches from the subtree
+    let stack = [subtree_root];
+    let node;
+    while (node = stack.pop()) {
+      if (node.isCompressed()) {
+        partial_matches = partial_matches.concat(node.values);
+        if (node.next != null) {
+          stack.push(node.next);
+        }
+      } else {
+        for (let v of node.values) {
+          partial_matches = partial_matches.concat(v);
+        }
+        
+        for (let n of node.next) {
+          if (n != null) stack.push(n);
+        }
+      }
+    }
+
+    return {full: full_matches, partial: partial_matches};
+  }
+
+  Node.prototype.add = function (word, value) {
+    let cn = this;
+    char_loop: for (let i = 0; i < word.length;) {
+      if (cn.isCompressed()) {
+        for(let j = 0; j < cn.labels.length; j += 1) {
+          let current_idx = i+j;
+
+          if (current_idx == word.length) {
+            if (j < cn.labels.length - 1) {
+              let node = new Node(cn.labels.slice(j), cn.next, cn.values);
+              cn.labels = cn.labels.slice(0, j);
+              cn.next = node;
+              cn.values = [];
+            }
+            cn.values.push(value);
+            return;
+          }
+          
+          if (word[current_idx] == cn.labels[j]) continue;
+          
+          // if we're here, a mismatch was found
+          if (j != cn.labels.length - 1) {
+            // create a suffix node
+            const label_suffix = cn.labels.slice(j+1);
+            let node = new Node(label_suffix, cn.next, [...cn.values]);
+            cn.next = node;
+            cn.values = [];
+          }
+
+          // turn current node into a split node
+          let node = null;
+          let word_values = [];
+          if (current_idx == word.length - 1) {
+            // mismatch happened in the last character of word
+            // meaning that the current node should hold its value
+            word_values.push(value);
+          } else {
+             node = new Node(word.slice(current_idx+1), null, [value]);
+          }
+        
+          cn.labels = cn.labels[j] + word[current_idx];
+          cn.next = [cn.next, node];          
+          cn.values = [cn.values, word_values];
+
+          if (j != 0) {
+            // current node must be turned into a prefix node
+            let splitNode = new Node(cn.labels, cn.next, cn.values);
+            cn.labels = word.slice(i, current_idx);
+            cn.next = splitNode;
+            cn.values = [];
+          }
+
+          return;
+        }        
+        // label matched fully with word, are there any more chars?
+        const new_idx = i + cn.labels.length;
+        if (new_idx == word.length) {
+          cn.values.push(value);
+          return;
+        } else {
+          if (cn.next == null) {
+            let node = new Node(word.slice(new_idx), null, [value]);
+            cn.next = node;
+            return;
+          } else {
+            cn = cn.next;
+            i = new_idx;
+            continue;
+          }
+        } 
+      } else { // node is not compressed
+        let letter = word[i];
+        for (let j = 0; j < cn.labels.length; j += 1) {
+          if (letter == cn.labels[j]) {
+            if (i == word.length - 1) {
+              cn.values[j].push(value);
+              return;
+            }
+            if (cn.next[j] == null) {
+              let node = new Node(word.slice(i+1), null, [value]);
+              cn.next[j] = node;
+              return;
+            } else {
+              cn = cn.next[j];
+              i += 1;
+              continue char_loop;
+            }
+          }
+        }
+
+        // if we're here we didn't find a match
+        cn.labels += letter;
+        if (i == word.length - 1) {
+          cn.next.push(null);
+          cn.values.push([value]);
+        } else {
+          let node = new Node(word.slice(i+1), null, [value]);
+          cn.next.push(node);
+          cn.values.push([]);
+        }
+        return;
+      }
+    }
+  }
+}
+
+// RADIX TREE:
+
+// apple 
+// appliance
+
+// "appl" => [
+//   'e', => $
+//   'i' => "ance" => $
+// ]
+
+// OUR STUFF:
+
+// AutoHashMap
+// AutoArrayHashMap
+
+// "Auto" => [
+//   'A', => "rrayHashMap" => $
+//   'H'  => "ashMap" => $
+// ]
+
+// BUT!
+
+// We want to be able to search "Hash", for example!
