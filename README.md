@@ -5,7 +5,7 @@
 [![License][license-shield]][license-url]
 [![Resources][resources-shield]][resources-url]
 
-### [Komihash](https://github.com/avaneev/komihash) ver. 4.7 implementation in Zig.
+### [Komihash](https://github.com/avaneev/komihash) version 4.7 port to Zig.
 
 #### :memo: TODO
 

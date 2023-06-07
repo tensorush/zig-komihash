@@ -458,7 +458,7 @@ pub const KomihashStream = struct {
 };
 
 test "Komirand" {
-    for (tests.KOMIRAND_SEEDS) |seed, i| {
+    for (tests.KOMIRAND_SEEDS, 0..) |seed, i| {
         var komirand = Komirand.init(seed);
         for (tests.KOMIRAND_VALUES[i]) |value| {
             try std.testing.expectEqual(value, komirand.next());
@@ -467,14 +467,14 @@ test "Komirand" {
 }
 
 test "Komihash" {
-    for (tests.KOMIHASH_HASHES) |hashes, i| {
+    for (tests.KOMIHASH_HASHES, 0..) |hashes, i| {
         try std.testing.expectEqual(hashes[0], Komihash.hash(tests.KOMIHASH_MSGS[i]));
         try std.testing.expectEqual(hashes[1], Komihash.hashWithSeed(tests.KOMIHASH_MSGS[i], hashes[2]));
     }
 }
 
 test "KomihashStream" {
-    for (tests.KOMIHASH_HASHES) |hashes, i| {
+    for (tests.KOMIHASH_HASHES, 0..) |hashes, i| {
         var len: u8 = 1;
         while (len < 128) : (len += 1) {
             var stream = KomihashStream.init(0);

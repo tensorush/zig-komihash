@@ -16,9 +16,9 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v3
       - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2.0.2
+        uses: goto-bus-stop/setup-zig@v2
         with:
-          version: 0.10.1
+          version: master
       - name: Run tests
         run: |
           zig env
@@ -29,8 +29,8 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v3
       - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2.0.2
+        uses: goto-bus-stop/setup-zig@v2
         with:
-          version: 0.10.1
+          version: master
       - name: Run linter
         run: zig fmt --check ./
