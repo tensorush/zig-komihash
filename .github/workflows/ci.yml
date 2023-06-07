@@ -1,11 +1,11 @@
-name: CI
+name: Continuous Integration
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths: ["**.zig"]
   pull_request:
-    branches: [master]
+    branches: [main]
     paths: ["**.zig"]
 
 jobs:
