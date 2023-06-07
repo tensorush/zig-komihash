@@ -18,11 +18,11 @@ jobs:
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2.0.2
         with:
-          version: master
+          version: 0.10.1
       - name: Run tests
         run: |
           zig env
-          zig test
+          zig build test
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -31,6 +31,6 @@ jobs:
       - name: Setup Zig
         uses: goto-bus-stop/setup-zig@v2.0.2
         with:
-          version: master
+          version: 0.10.1
       - name: Run linter
         run: zig fmt --check ./
