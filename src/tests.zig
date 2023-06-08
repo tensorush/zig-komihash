@@ -1,6 +1,6 @@
 test {
     @import("std").testing.refAllDecls(@This());
-    _ = @import("Komihash.zig");
+    _ = @import("komihash.zig");
     _ = @import("Komirand.zig");
 }
 
