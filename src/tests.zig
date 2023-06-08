@@ -1,3 +1,9 @@
+test {
+    @import("std").testing.refAllDecls(@This());
+    _ = @import("Komihash.zig");
+    _ = @import("Komirand.zig");
+}
+
 /// Test seeds for initializing Komirand PRNG.
 pub const KOMIRAND_SEEDS = [_]u64{ 0x0000000000000000, 0x0000000000000100, 0x0123456789ABCDEF };
 

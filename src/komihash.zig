@@ -81,125 +81,15 @@ inline fn padShort(msg: []const u8, idx: usize, len: usize) u64 {
     }
 }
 
-/// Multiplies two 64-bit unsigned integers.
-inline fn multiply128(a: u64, b: u64, rl: *u64, rh: *u64) void {
+/// Multiplies two 64-bit unsigned integers and
+/// stores the result in two other 64-bit unsigned integers.
+pub inline fn mul128(a: u64, b: u64, rl: *u64, rh: *u64) void {
     const r = std.math.mulWide(u128, a, b);
     rl.* = @truncate(u64, r);
     rh.* = @truncate(u64, r >> 64);
 }
 
-/// Common hashing round with 16-byte input, using the "r1h" temporary variable.
-inline fn hash16(msg: []const u8, idx: usize, seed1: *u64, seed5: *u64, r1h: *u64) void {
-    multiply128(seed1.* ^ readInt64(msg[idx .. idx + 8]), seed5.* ^ readInt64(msg[idx + 8 .. idx + 16]), seed1, r1h);
-    seed5.* +%= r1h.*;
-    seed1.* ^= seed5.*;
-}
-
-/// Common hashing round without input, using the "r2h" temporary variable.
-inline fn hashRound(seed1: *u64, seed5: *u64, r2h: *u64) void {
-    multiply128(seed1.*, seed5.*, seed1, r2h);
-    seed5.* +%= r2h.*;
-    seed1.* ^= seed5.*;
-}
-
-/// Common hashing finalization round, with the finish hashing input
-/// expected in the "r1h" and "r2h" temporary variables.
-inline fn hashFinish(seed1: *u64, seed5: *u64, r1h: *u64, r2h: *u64) void {
-    multiply128(r1h.*, r2h.*, seed1, r1h);
-    seed5.* +%= r1h.*;
-    seed1.* ^= seed5.*;
-    hashRound(seed1, seed5, r2h);
-}
-
-/// Common 64-byte full-performance hashing loop. Expects msg and len values (greater than 63),
-/// requires initialized seed1-8 values, uses r1h-r4h temporary variables.
-/// The "shifting" arrangement of seed1-4 (below) does not increase individual
-/// seedN's PRNG period beyond 2^64, but reduces a chance of any occasional
-/// synchronization between PRNG lanes happening. Practically, seed1-4 together
-/// become a single "fused" 256-bit PRNG value, having a summary PRNG period.
-inline fn hashLoop(msg: []const u8, idx: *usize, len: *usize, seed1: *u64, seed2: *u64, seed3: *u64, seed4: *u64, seed5: *u64, seed6: *u64, seed7: *u64, seed8: *u64, r1h: *u64, r2h: *u64, r3h: *u64, r4h: *u64) void {
-    std.debug.assert(len.* > 63);
-    while (true) {
-        const i = idx.*;
-        @prefetch(msg, .{ .locality = 1 });
-        multiply128(seed1.* ^ readInt64(msg[i .. i + 8]), seed5.* ^ readInt64(msg[i + 8 .. i + 16]), seed1, r1h);
-        multiply128(seed2.* ^ readInt64(msg[i + 16 .. i + 24]), seed6.* ^ readInt64(msg[i + 24 .. i + 32]), seed2, r2h);
-        multiply128(seed3.* ^ readInt64(msg[i + 32 .. i + 40]), seed7.* ^ readInt64(msg[i + 40 .. i + 48]), seed3, r3h);
-        multiply128(seed4.* ^ readInt64(msg[i + 48 .. i + 56]), seed8.* ^ readInt64(msg[i + 56 .. i + 64]), seed4, r4h);
-        idx.* += 64;
-        len.* -= 64;
-        seed5.* +%= r1h.*;
-        seed6.* +%= r2h.*;
-        seed7.* +%= r3h.*;
-        seed8.* +%= r4h.*;
-        seed2.* ^= seed5.*;
-        seed3.* ^= seed6.*;
-        seed4.* ^= seed7.*;
-        seed1.* ^= seed8.*;
-        if (!isLikely(len.* > 63))
-            break;
-    }
-}
-
-/// The hashing epilogue function.
-inline fn epilogue(msg: []const u8, idx: usize, len: usize, seed1: u64, seed5: u64) u64 {
-    var r1h: u64 = undefined;
-    var r2h: u64 = undefined;
-    var s1 = seed1;
-    var s5 = seed5;
-    var i = idx;
-    var l = len;
-    @prefetch(msg, .{ .locality = 1 });
-    if (isLikely(l > 31)) {
-        hash16(msg, i, &s1, &s5, &r1h);
-        hash16(msg, i + 16, &s1, &s5, &r1h);
-        i += 32;
-        l -= 32;
-    }
-    if (l > 15) {
-        hash16(msg, i, &s1, &s5, &r1h);
-        i += 16;
-        l -= 16;
-    }
-    if (l > 7) {
-        r2h = s5 ^ padLong4(msg, i + 8, l - 8);
-        r1h = s1 ^ readInt64(msg[i .. i + 8]);
-    } else {
-        r1h = s1 ^ padLong4(msg, i, l);
-        r2h = s5;
-    }
-    hashFinish(&s1, &s5, &r1h, &r2h);
-    return s1;
-}
-
-/// Simple, reliable, self-starting yet efficient PRNG, with 2^64 period.
-/// 0.62 cycles/byte performance. Self-starts in 4 iterations, which is a
-/// suggested "warming up" initialization before using its output.
-pub const Komirand = struct {
-    seed1: u64 = 0,
-    seed2: u64 = 0,
-
-    /// Initializes PRNG with one seed.
-    pub inline fn init(seed: u64) Komirand {
-        return .{ .seed1 = seed, .seed2 = seed };
-    }
-
-    /// Initializes PRNG with two seeds. Best initialized to the same value.
-    pub inline fn initWithExtraSeed(seed1: u64, seed2: u64) Komirand {
-        return .{ .seed1 = seed1, .seed2 = seed2 };
-    }
-
-    /// Produces the next uniformly-random 64-bit value.
-    pub inline fn next(self: *Komirand) u64 {
-        var rh: u64 = undefined;
-        multiply128(self.seed1, self.seed2, &self.seed1, &rh);
-        self.seed2 +%= rh +% 0xAAAAAAAAAAAAAAAA;
-        self.seed1 ^= self.seed2;
-        return self.seed1;
-    }
-};
-
-/// Namespace for komihash hashing function modes.
+/// Namespace for one-shot komihash hash function.
 pub const Komihash = struct {
     /// Hashes the message with default seed.
     pub inline fn hash(msg: []const u8) u64 {
@@ -210,59 +100,143 @@ pub const Komihash = struct {
     pub inline fn hashWithSeed(msg: []const u8, seed: u64) u64 {
         return komihash(msg, msg.len, seed);
     }
-};
 
-/// Produces and returns a 64-bit hash value of the
-/// specified message, string, or binary data block.
-inline fn komihash(msg: []const u8, msg_len: usize, seed: u64) u64 {
-    var seed1: u64 = 0x243F6A8885A308D3 ^ (seed & 0x5555555555555555);
-    var seed5: u64 = 0x452821E638D01377 ^ (seed & 0xAAAAAAAAAAAAAAAA);
-    var r1h: u64 = undefined;
-    var r2h: u64 = undefined;
-    var idx: usize = 0;
-    var len = msg_len;
-    hashRound(&seed1, &seed5, &r2h);
-    if (isLikely(len < 16)) {
-        @prefetch(msg, .{ .locality = 1 });
-        r1h = seed1;
-        r2h = seed5;
-        if (len > 7) {
-            r2h ^= padLong3(msg, idx + 8, len - 8);
-            r1h ^= readInt64(msg[idx .. idx + 8]);
-        } else if (isLikely(len != 0)) {
-            r1h ^= padShort(msg, idx, len);
-        }
-        hashFinish(&seed1, &seed5, &r1h, &r2h);
-        return seed1;
+    /// Common hashing round with 16-byte input, using the "r1h" temporary variable.
+    inline fn roundInput(msg: []const u8, idx: usize, seed1: *u64, seed5: *u64, r1h: *u64) void {
+        mul128(seed1.* ^ readInt64(msg[idx .. idx + 8]), seed5.* ^ readInt64(msg[idx + 8 .. idx + 16]), seed1, r1h);
+        seed5.* +%= r1h.*;
+        seed1.* ^= seed5.*;
     }
-    if (isLikely(len < 32)) {
+
+    /// Common hashing round without input, using the "r2h" temporary variable.
+    inline fn round(seed1: *u64, seed5: *u64, r2h: *u64) void {
+        mul128(seed1.*, seed5.*, seed1, r2h);
+        seed5.* +%= r2h.*;
+        seed1.* ^= seed5.*;
+    }
+
+    /// Common hashing finalization round, with the finish hashing input
+    /// expected in the "r1h" and "r2h" temporary variables.
+    inline fn finish(seed1: *u64, seed5: *u64, r1h: *u64, r2h: *u64) void {
+        mul128(r1h.*, r2h.*, seed1, r1h);
+        seed5.* +%= r1h.*;
+        seed1.* ^= seed5.*;
+        round(seed1, seed5, r2h);
+    }
+
+    /// Common 64-byte full-performance hashing loop. Expects msg and len values (greater than 63),
+    /// requires initialized seed1-8 values, uses r1h-r4h temporary variables.
+    /// The "shifting" arrangement of seed1-4 (below) does not increase individual
+    /// seedN's PRNG period beyond 2^64, but reduces a chance of any occasional
+    /// synchronization between PRNG lanes happening. Practically, seed1-4 together
+    /// become a single "fused" 256-bit PRNG value, having a summary PRNG period.
+    inline fn loop(msg: []const u8, idx: *usize, len: *usize, seed1: *u64, seed2: *u64, seed3: *u64, seed4: *u64, seed5: *u64, seed6: *u64, seed7: *u64, seed8: *u64, r1h: *u64, r2h: *u64, r3h: *u64, r4h: *u64) void {
+        std.debug.assert(len.* > 63);
+        while (true) {
+            const i = idx.*;
+            @prefetch(msg, .{ .locality = 1 });
+            mul128(seed1.* ^ readInt64(msg[i .. i + 8]), seed5.* ^ readInt64(msg[i + 8 .. i + 16]), seed1, r1h);
+            mul128(seed2.* ^ readInt64(msg[i + 16 .. i + 24]), seed6.* ^ readInt64(msg[i + 24 .. i + 32]), seed2, r2h);
+            mul128(seed3.* ^ readInt64(msg[i + 32 .. i + 40]), seed7.* ^ readInt64(msg[i + 40 .. i + 48]), seed3, r3h);
+            mul128(seed4.* ^ readInt64(msg[i + 48 .. i + 56]), seed8.* ^ readInt64(msg[i + 56 .. i + 64]), seed4, r4h);
+            idx.* += 64;
+            len.* -= 64;
+            seed5.* +%= r1h.*;
+            seed6.* +%= r2h.*;
+            seed7.* +%= r3h.*;
+            seed8.* +%= r4h.*;
+            seed2.* ^= seed5.*;
+            seed3.* ^= seed6.*;
+            seed4.* ^= seed7.*;
+            seed1.* ^= seed8.*;
+            if (!isLikely(len.* > 63))
+                break;
+        }
+    }
+
+    /// The hashing epilogue function.
+    inline fn epilogue(msg: []const u8, idx: usize, len: usize, seed1: u64, seed5: u64) u64 {
+        var r1h: u64 = undefined;
+        var r2h: u64 = undefined;
+        var s1 = seed1;
+        var s5 = seed5;
+        var i = idx;
+        var l = len;
         @prefetch(msg, .{ .locality = 1 });
-        hash16(msg, idx, &seed1, &seed5, &r1h);
-        if (len > 23) {
-            r2h = seed5 ^ padLong4(msg, idx + 24, len - 24);
-            r1h = seed1 ^ readInt64(msg[idx + 16 .. idx + 24]);
+        if (isLikely(l > 31)) {
+            roundInput(msg, i, &s1, &s5, &r1h);
+            roundInput(msg, i + 16, &s1, &s5, &r1h);
+            i += 32;
+            l -= 32;
+        }
+        if (l > 15) {
+            roundInput(msg, i, &s1, &s5, &r1h);
+            i += 16;
+            l -= 16;
+        }
+        if (l > 7) {
+            r2h = s5 ^ padLong4(msg, i + 8, l - 8);
+            r1h = s1 ^ readInt64(msg[i .. i + 8]);
         } else {
-            r1h = seed1 ^ padLong4(msg, idx + 16, len - 16);
-            r2h = seed5;
+            r1h = s1 ^ padLong4(msg, i, l);
+            r2h = s5;
         }
-        hashFinish(&seed1, &seed5, &r1h, &r2h);
-        return seed1;
+        finish(&s1, &s5, &r1h, &r2h);
+        return s1;
     }
-    if (len > 63) {
-        var seed2 = 0x13198A2E03707344 ^ seed1;
-        var seed3 = 0xA4093822299F31D0 ^ seed1;
-        var seed4 = 0x082EFA98EC4E6C89 ^ seed1;
-        var seed6 = 0xBE5466CF34E90C6C ^ seed5;
-        var seed7 = 0xC0AC29B7C97C50DD ^ seed5;
-        var seed8 = 0x3F84D5B5B5470917 ^ seed5;
-        var r3h: u64 = undefined;
-        var r4h: u64 = undefined;
-        hashLoop(msg, &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8, &r1h, &r2h, &r3h, &r4h);
-        seed5 ^= seed6 ^ seed7 ^ seed8;
-        seed1 ^= seed2 ^ seed3 ^ seed4;
+
+    /// Produces and returns a 64-bit hash value of the
+    /// specified message, string, or binary data block.
+    inline fn komihash(msg: []const u8, msg_len: usize, seed: u64) u64 {
+        var seed1: u64 = 0x243F6A8885A308D3 ^ (seed & 0x5555555555555555);
+        var seed5: u64 = 0x452821E638D01377 ^ (seed & 0xAAAAAAAAAAAAAAAA);
+        var r1h: u64 = undefined;
+        var r2h: u64 = undefined;
+        var idx: usize = 0;
+        var len = msg_len;
+        round(&seed1, &seed5, &r2h);
+        if (isLikely(len < 16)) {
+            @prefetch(msg, .{ .locality = 1 });
+            r1h = seed1;
+            r2h = seed5;
+            if (len > 7) {
+                r2h ^= padLong3(msg, idx + 8, len - 8);
+                r1h ^= readInt64(msg[idx .. idx + 8]);
+            } else if (isLikely(len != 0)) {
+                r1h ^= padShort(msg, idx, len);
+            }
+            finish(&seed1, &seed5, &r1h, &r2h);
+            return seed1;
+        }
+        if (isLikely(len < 32)) {
+            @prefetch(msg, .{ .locality = 1 });
+            roundInput(msg, idx, &seed1, &seed5, &r1h);
+            if (len > 23) {
+                r2h = seed5 ^ padLong4(msg, idx + 24, len - 24);
+                r1h = seed1 ^ readInt64(msg[idx + 16 .. idx + 24]);
+            } else {
+                r1h = seed1 ^ padLong4(msg, idx + 16, len - 16);
+                r2h = seed5;
+            }
+            finish(&seed1, &seed5, &r1h, &r2h);
+            return seed1;
+        }
+        if (len > 63) {
+            var seed2 = 0x13198A2E03707344 ^ seed1;
+            var seed3 = 0xA4093822299F31D0 ^ seed1;
+            var seed4 = 0x082EFA98EC4E6C89 ^ seed1;
+            var seed6 = 0xBE5466CF34E90C6C ^ seed5;
+            var seed7 = 0xC0AC29B7C97C50DD ^ seed5;
+            var seed8 = 0x3F84D5B5B5470917 ^ seed5;
+            var r3h: u64 = undefined;
+            var r4h: u64 = undefined;
+            loop(msg, &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8, &r1h, &r2h, &r3h, &r4h);
+            seed5 ^= seed6 ^ seed7 ^ seed8;
+            seed1 ^= seed2 ^ seed3 ^ seed4;
+        }
+        return epilogue(msg, idx, len, seed1, seed5);
     }
-    return epilogue(msg, idx, len, seed1, seed5);
-}
+};
 
 /// KomihashStream structure holding streamed hashing state.
 pub const KomihashStream = struct {
@@ -281,7 +255,7 @@ pub const KomihashStream = struct {
         return stream;
     }
 
-    /// Updates the streamed hashing stream with a new input data.
+    /// Updates the streamed hashing stream with new input data.
     pub inline fn update(self: *KomihashStream, msg: []const u8) void {
         var buf_fill = self.buf_fill;
         var sw_idx: usize = 0;
@@ -340,7 +314,7 @@ pub const KomihashStream = struct {
                     const seed = self.seeds[0];
                     seed1 = 0x243F6A8885A308D3 ^ (seed & 0x5555555555555555);
                     seed5 = 0x452821E638D01377 ^ (seed & 0xAAAAAAAAAAAAAAAA);
-                    hashRound(&seed1, &seed5, &r2h);
+                    Komihash.round(&seed1, &seed5, &r2h);
                     seed2 = 0x13198A2E03707344 ^ seed1;
                     seed3 = 0xA4093822299F31D0 ^ seed1;
                     seed4 = 0x082EFA98EC4E6C89 ^ seed1;
@@ -349,9 +323,9 @@ pub const KomihashStream = struct {
                     seed8 = 0x3F84D5B5B5470917 ^ seed5;
                 }
                 if (did_fit)
-                    hashLoop(self.buf[0..], &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8, &r1h, &r2h, &r3h, &r4h)
+                    Komihash.loop(self.buf[0..], &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8, &r1h, &r2h, &r3h, &r4h)
                 else
-                    hashLoop(msg, &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8, &r1h, &r2h, &r3h, &r4h);
+                    Komihash.loop(msg, &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8, &r1h, &r2h, &r3h, &r4h);
                 self.seeds[0] = seed1;
                 self.seeds[1] = seed2;
                 self.seeds[2] = seed3;
@@ -387,7 +361,7 @@ pub const KomihashStream = struct {
         var len = self.buf_fill;
         var idx: usize = 0;
         if (self.is_hashing == false)
-            return komihash(msg, len, self.seeds[0]);
+            return Komihash.komihash(msg, len, self.seeds[0]);
         var seed1 = self.seeds[0];
         var seed2 = self.seeds[1];
         var seed3 = self.seeds[2];
@@ -401,22 +375,13 @@ pub const KomihashStream = struct {
             var r2h: u64 = undefined;
             var r3h: u64 = undefined;
             var r4h: u64 = undefined;
-            hashLoop(msg, &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8, &r1h, &r2h, &r3h, &r4h);
+            Komihash.loop(msg, &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8, &r1h, &r2h, &r3h, &r4h);
         }
         seed5 ^= seed6 ^ seed7 ^ seed8;
         seed1 ^= seed2 ^ seed3 ^ seed4;
-        return epilogue(msg, idx, len, seed1, seed5);
+        return Komihash.epilogue(msg, idx, len, seed1, seed5);
     }
 };
-
-test "Komirand" {
-    for (tests.KOMIRAND_SEEDS, 0..) |seed, i| {
-        var komirand = Komirand.init(seed);
-        for (tests.KOMIRAND_VALUES[i]) |value| {
-            try std.testing.expectEqual(value, komirand.next());
-        }
-    }
-}
 
 test "Komihash" {
     for (tests.KOMIHASH_HASHES, 0..) |hashes, i| {

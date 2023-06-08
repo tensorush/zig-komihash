@@ -5,11 +5,12 @@
 [![License][license-shield]][license-url]
 [![Resources][resources-shield]][resources-url]
 
-### Zig port of [komihash and komirand v4.7](https://github.com/avaneev/komihash).
+### Zig port of [komihash v4.7](https://github.com/avaneev/komihash).
 
 #### :memo: TODO
 
-- [ ] Fix KomihashStream on updates with message length > 127
+- [ ] Fix `KomihashStream` on updates with message length > 127
+- [ ] Benchmark `KomihashStream` against other std.hash functions
 
 <!-- MARKDOWN LINKS -->
 

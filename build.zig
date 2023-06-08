@@ -5,7 +5,7 @@ pub fn build(b: *Builder) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const tests = b.addTest(.{
-        .root_source_file = .{ .path = "src/komihash.zig" },
+        .root_source_file = .{ .path = "src/tests.zig" },
         .target = target,
         .optimize = optimize,
     });
