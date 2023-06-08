@@ -1,5 +1,5 @@
-const komihash = @import("komihash.zig");
-const Komirand = @import("Komirand.zig");
+pub const komihash = @import("komihash.zig");
+pub const Komirand = @import("Komirand.zig");
 
 test {
     @import("std").testing.refAllDecls(@This());
