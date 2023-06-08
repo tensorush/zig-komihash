@@ -23,15 +23,10 @@ inline fn readInt64(bytes: []const u8) u64 {
     return std.mem.readIntLittle(u64, @ptrCast(*const [8]u8, bytes));
 }
 
-/// Function builds an unsigned 64-bit value out of remaining bytes in a
-/// message, and pads it with the "final byte". This function can only be
-/// called if less than 8 bytes are left to read. The message should be "long",
+/// Builds an unsigned 64-bit value out of remaining bytes in a message,
+/// and pads it with the "final byte". This function can only be called
+/// if less than 8 bytes are left to read. The message should be "long",
 /// permitting msg[-3] reads.
-///
-/// @param msg Message pointer, alignment is unimportant.
-/// @param idx Message's current index.
-/// @param len Message's remaining length, in bytes; can be 0.
-/// @return Final byte-padded value from the message.
 inline fn padLong3(msg: []const u8, idx: usize, len: usize) u64 {
     std.debug.assert(idx > 2 and len < 8);
     const ml8 = -8 * @intCast(i8, len);
@@ -46,15 +41,10 @@ inline fn padLong3(msg: []const u8, idx: usize, len: usize) u64 {
     }
 }
 
-/// Function builds an unsigned 64-bit value out of remaining bytes in a
-/// message, and pads it with the "final byte". This function can only be
-/// called if less than 8 bytes are left to read. The message should be "long",
+/// Builds an unsigned 64-bit value out of remaining bytes in a message,
+/// and pads it with the "final byte". This function can only be called
+/// if less than 8 bytes are left to read. The message should be "long",
 /// permitting msg[-4] reads.
-///
-/// @param msg Message pointer, alignment is unimportant.
-/// @param idx Message's current index.
-/// @param len Message's remaining length, in bytes; can be 0.
-/// @return Final byte-padded value from the message.
 inline fn padLong4(msg: []const u8, idx: usize, len: usize) u64 {
     std.debug.assert(idx > 3 and len < 8);
     const ml8 = -8 * @intCast(i8, len);
@@ -67,15 +57,10 @@ inline fn padLong4(msg: []const u8, idx: usize, len: usize) u64 {
     }
 }
 
-/// Function builds an unsigned 64-bit value out of remaining bytes in a
-/// message, and pads it with the "final byte". This function can only be
-/// called if less than 8 bytes are left to read. Can be used on "short"
+/// Builds an unsigned 64-bit value out of remaining bytes in a message,
+/// and pads it with the "final byte". This function can only be called
+/// if less than 8 bytes are left to read. Can be used on "short"
 /// messages, but msg.len should be greater than 0.
-///
-/// @param msg Message pointer, alignment is unimportant.
-/// @param idx Message's current index.
-/// @param len Message's remaining length, in bytes; cannot be 0.
-/// @return Final byte-padded value from the message.
 inline fn padShort(msg: []const u8, idx: usize, len: usize) u64 {
     std.debug.assert(len > 0 and len < 8);
     const ml8 = -8 * @intCast(i8, len);
@@ -96,12 +81,7 @@ inline fn padShort(msg: []const u8, idx: usize, len: usize) u64 {
     }
 }
 
-/// 64-bit by 64-bit unsigned integer multiplication.
-///
-/// @param a First multiplier.
-/// @param b Second multiplier.
-/// @param[out] rl The lower half of the 128-bit result.
-/// @param[out] rh The higher half of the 128-bit result.
+/// Multiplies two 64-bit unsigned integers.
 inline fn multiply128(a: u64, b: u64, rl: *u64, rh: *u64) void {
     const r = std.math.mulWide(u128, a, b);
     rl.* = @truncate(u64, r);
@@ -162,13 +142,6 @@ inline fn hashLoop(msg: []const u8, idx: *usize, len: *usize, seed1: *u64, seed2
 }
 
 /// The hashing epilogue function.
-///
-/// @param msg Pointer to the remaining part of the message.
-/// @param idx Message's current index.
-/// @param len Remaining message's length, can be zero.
-/// @param seed1 Latest seed1 value.
-/// @param seed5 Latest seed5 value.
-/// @return 64-bit hash value.
 inline fn epilogue(msg: []const u8, idx: usize, len: usize, seed1: u64, seed5: u64) u64 {
     var r1h: u64 = undefined;
     var r2h: u64 = undefined;
@@ -206,18 +179,17 @@ pub const Komirand = struct {
     seed1: u64 = 0,
     seed2: u64 = 0,
 
-    /// @param seed Base seed value. Can be initialized to any value.
+    /// Initializes PRNG with one seed.
     pub inline fn init(seed: u64) Komirand {
         return .{ .seed1 = seed, .seed2 = seed };
     }
 
-    /// @param seed1 Base seed value. Can be initialized to any value.
-    /// @param seed2 Extra seed value. Best initialized to the same value as seed1.
+    /// Initializes PRNG with two seeds. Best initialized to the same value.
     pub inline fn initWithExtraSeed(seed1: u64, seed2: u64) Komirand {
         return .{ .seed1 = seed1, .seed2 = seed2 };
     }
 
-    /// @return The next uniformly-random 64-bit value.
+    /// Produces the next uniformly-random 64-bit value.
     pub inline fn next(self: *Komirand) u64 {
         var rh: u64 = undefined;
         multiply128(self.seed1, self.seed2, &self.seed1, &rh);
@@ -227,27 +199,21 @@ pub const Komirand = struct {
     }
 };
 
+/// Namespace for komihash hashing function modes.
 pub const Komihash = struct {
+    /// Hashes the message with default seed.
     pub inline fn hash(msg: []const u8) u64 {
         return komihash(msg, msg.len, 0);
     }
 
+    /// Hashes the message with specific seed.
     pub inline fn hashWithSeed(msg: []const u8, seed: u64) u64 {
         return komihash(msg, msg.len, seed);
     }
 };
 
-/// Komihash hash function produces and returns a 64-bit hash value of the
-/// specified message, string, or binary data block. Designed for 64-bit
-/// hash-table and hash-map uses.
-///
-/// @param msg The message to produce a hash from. The alignment of this
-/// pointer is unimportant. It is valid to pass 0 when len == 0.
-/// @param msg_len Message's length, in bytes, can be zero.
-/// @param seed Seed value to use instead of the default seed.
-/// The seed value can have any bit length and statistical quality,
-/// and is used only as an additional entropy source.
-/// @return 64-bit hash of the input data.
+/// Produces and returns a 64-bit hash value of the
+/// specified message, string, or binary data block.
 inline fn komihash(msg: []const u8, msg_len: usize, seed: u64) u64 {
     var seed1: u64 = 0x243F6A8885A308D3 ^ (seed & 0x5555555555555555);
     var seed5: u64 = 0x452821E638D01377 ^ (seed & 0xAAAAAAAAAAAAAAAA);
@@ -298,10 +264,7 @@ inline fn komihash(msg: []const u8, msg_len: usize, seed: u64) u64 {
     return epilogue(msg, idx, len, seed1, seed5);
 }
 
-/// KomihashStream structure that holds streamed hashing stream.
-/// The init() function should be called to initialize the structure before hashing.
-/// Note that the default buffer size is modest, permitting placement of this
-/// structure on stack. seed[0] is used as initial seed storage.
+/// KomihashStream structure holding streamed hashing state.
 pub const KomihashStream = struct {
     /// Streamed hashing's buffer size in bytes, must be a multiple of 64, and not less than 128.
     const BUF_SIZE = 768;
@@ -311,22 +274,14 @@ pub const KomihashStream = struct {
     is_hashing: bool = false,
     buf_fill: usize = 0,
 
-    /// Function initializes the streamed hashing session.
-    ///
-    /// @param seed Optional value, to use instead of the default seed.
-    /// The seed value can have any bit length and statistical quality,
-    /// and is used only as an additional entropy source.
+    /// Initializes the streamed hashing session.
     pub inline fn init(seed: u64) KomihashStream {
         var stream = KomihashStream{};
         stream.seeds[0] = seed;
         return stream;
     }
 
-    /// Function updates the streamed hashing stream with a new input data.
-    ///
-    /// @param[in] Pointer to the context structure.
-    /// @param msg The next part of the whole message being hashed. The alignment
-    /// of this pointer is unimportant. It is valid to pass 0 when len == 0.
+    /// Updates the streamed hashing stream with a new input data.
     pub inline fn update(self: *KomihashStream, msg: []const u8) void {
         var buf_fill = self.buf_fill;
         var sw_idx: usize = 0;
@@ -424,12 +379,9 @@ pub const KomihashStream = struct {
         self.buf_fill = buf_fill + len;
     }
 
-    /// Function finalizes the streamed hashing session, and returns the resulting
+    /// Finalizes the streamed hashing session, and returns the resulting
     /// hash value of the previously hashed data. This value is equal to the value
     /// returned by the komihash() function for the same provided data.
-    ///
-    /// @param[in] Pointer to the context structure.
-    /// @return 64-bit hash value.
     pub inline fn finish(self: *KomihashStream) u64 {
         const msg = self.buf[0..self.buf_fill];
         var len = self.buf_fill;
