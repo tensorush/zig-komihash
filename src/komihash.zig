@@ -1,5 +1,6 @@
 const std = @import("std");
 const tests = @import("tests.zig");
+pub const Komirand = @import("Komirand.zig");
 
 /// Cold path for manually-guided branch prediction.
 inline fn coldPath() void {

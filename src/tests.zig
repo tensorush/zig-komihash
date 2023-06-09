@@ -1,8 +1,7 @@
-pub const komihash = @import("komihash.zig");
-pub const Komirand = @import("Komirand.zig");
-
 test {
     @import("std").testing.refAllDecls(@This());
+    _ = @import("komihash.zig");
+    _ = @import("Komirand.zig");
 }
 
 /// Test seeds for initializing Komirand PRNG.

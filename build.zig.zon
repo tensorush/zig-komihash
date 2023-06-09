@@ -1,0 +1,4 @@
+.{
+    .name = "zig-komihash",
+    .version = "4.7.0",
+}
