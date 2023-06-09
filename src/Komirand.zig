@@ -4,7 +4,7 @@
 
 const std = @import("std");
 const tests = @import("tests.zig");
-const mul128 = @import("komihash.zig").mul128;
+const utils = @import("utils.zig");
 
 const Komirand = @This();
 
@@ -12,31 +12,31 @@ seed1: u64 = 0,
 seed2: u64 = 0,
 
 /// Initializes PRNG with one seed.
-pub fn init(seed: u64) Komirand {
+pub inline fn init(seed: u64) Komirand {
     return .{ .seed1 = seed, .seed2 = seed };
 }
 
 /// Initializes PRNG with two seeds. Best initialized to the same value.
-pub fn initWithExtraSeed(seed1: u64, seed2: u64) Komirand {
+pub inline fn initWithExtraSeed(seed1: u64, seed2: u64) Komirand {
     return .{ .seed1 = seed1, .seed2 = seed2 };
 }
 
 /// Provides Random API initialized with the fill function.
-pub fn random(self: *Komirand) std.rand.Random {
+pub inline fn random(self: *Komirand) std.rand.Random {
     return std.rand.Random.init(self, fill);
 }
 
 /// Produces the next uniformly-random 64-bit value.
-pub fn next(self: *Komirand) u64 {
+pub inline fn next(self: *Komirand) u64 {
     var rh: u64 = undefined;
-    mul128(self.seed1, self.seed2, &self.seed1, &rh);
+    utils.mul128(self.seed1, self.seed2, &self.seed1, &rh);
     self.seed2 +%= rh +% 0xAAAAAAAAAAAAAAAA;
     self.seed1 ^= self.seed2;
     return self.seed1;
 }
 
 /// Fills a byte buffer with pseudo-random values.
-pub fn fill(self: *Komirand, buf: []u8) void {
+pub inline fn fill(self: *Komirand, buf: []u8) void {
     var i: usize = 0;
     const aligned_len = buf.len - (buf.len & 7);
 

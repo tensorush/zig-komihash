@@ -117,7 +117,7 @@
 <span class="line" id="L4"></span>
 <span class="line" id="L5"><span class="tok-kw">const</span> std = <span class="tok-builtin">@import</span>(<span class="tok-str">&quot;std&quot;</span>);</span>
 <span class="line" id="L6"><span class="tok-kw">const</span> tests = <span class="tok-builtin">@import</span>(<span class="tok-str">&quot;tests.zig&quot;</span>);</span>
-<span class="line" id="L7"><span class="tok-kw">const</span> mul128 = <span class="tok-builtin">@import</span>(<span class="tok-str">&quot;komihash.zig&quot;</span>).mul128;</span>
+<span class="line" id="L7"><span class="tok-kw">const</span> utils = <span class="tok-builtin">@import</span>(<span class="tok-str">&quot;utils.zig&quot;</span>);</span>
 <span class="line" id="L8"></span>
 <span class="line" id="L9"><span class="tok-kw">const</span> Komirand = <span class="tok-builtin">@This</span>();</span>
 <span class="line" id="L10"></span>
@@ -125,31 +125,31 @@
 <span class="line" id="L12">seed2: <span class="tok-type">u64</span> = <span class="tok-number">0</span>,</span>
 <span class="line" id="L13"></span>
 <span class="line" id="L14"><span class="tok-comment">/// Initializes PRNG with one seed.</span></span>
-<span class="line" id="L15"><span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">init</span>(seed: <span class="tok-type">u64</span>) Komirand {</span>
+<span class="line" id="L15"><span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">init</span>(seed: <span class="tok-type">u64</span>) Komirand {</span>
 <span class="line" id="L16">    <span class="tok-kw">return</span> .{ .seed1 = seed, .seed2 = seed };</span>
 <span class="line" id="L17">}</span>
 <span class="line" id="L18"></span>
 <span class="line" id="L19"><span class="tok-comment">/// Initializes PRNG with two seeds. Best initialized to the same value.</span></span>
-<span class="line" id="L20"><span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">initWithExtraSeed</span>(seed1: <span class="tok-type">u64</span>, seed2: <span class="tok-type">u64</span>) Komirand {</span>
+<span class="line" id="L20"><span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">initWithExtraSeed</span>(seed1: <span class="tok-type">u64</span>, seed2: <span class="tok-type">u64</span>) Komirand {</span>
 <span class="line" id="L21">    <span class="tok-kw">return</span> .{ .seed1 = seed1, .seed2 = seed2 };</span>
 <span class="line" id="L22">}</span>
 <span class="line" id="L23"></span>
 <span class="line" id="L24"><span class="tok-comment">/// Provides Random API initialized with the fill function.</span></span>
-<span class="line" id="L25"><span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">random</span>(self: *Komirand) std.rand.Random {</span>
+<span class="line" id="L25"><span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">random</span>(self: *Komirand) std.rand.Random {</span>
 <span class="line" id="L26">    <span class="tok-kw">return</span> std.rand.Random.init(self, fill);</span>
 <span class="line" id="L27">}</span>
 <span class="line" id="L28"></span>
 <span class="line" id="L29"><span class="tok-comment">/// Produces the next uniformly-random 64-bit value.</span></span>
-<span class="line" id="L30"><span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">next</span>(self: *Komirand) <span class="tok-type">u64</span> {</span>
+<span class="line" id="L30"><span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">next</span>(self: *Komirand) <span class="tok-type">u64</span> {</span>
 <span class="line" id="L31">    <span class="tok-kw">var</span> rh: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L32">    mul128(self.seed1, self.seed2, &amp;self.seed1, &amp;rh);</span>
+<span class="line" id="L32">    utils.mul128(self.seed1, self.seed2, &amp;self.seed1, &amp;rh);</span>
 <span class="line" id="L33">    self.seed2 +%= rh +% <span class="tok-number">0xAAAAAAAAAAAAAAAA</span>;</span>
 <span class="line" id="L34">    self.seed1 ^= self.seed2;</span>
 <span class="line" id="L35">    <span class="tok-kw">return</span> self.seed1;</span>
 <span class="line" id="L36">}</span>
 <span class="line" id="L37"></span>
 <span class="line" id="L38"><span class="tok-comment">/// Fills a byte buffer with pseudo-random values.</span></span>
-<span class="line" id="L39"><span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">fill</span>(self: *Komirand, buf: []<span class="tok-type">u8</span>) <span class="tok-type">void</span> {</span>
+<span class="line" id="L39"><span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">fill</span>(self: *Komirand, buf: []<span class="tok-type">u8</span>) <span class="tok-type">void</span> {</span>
 <span class="line" id="L40">    <span class="tok-kw">var</span> i: <span class="tok-type">usize</span> = <span class="tok-number">0</span>;</span>
 <span class="line" id="L41">    <span class="tok-kw">const</span> aligned_len = buf.len - (buf.len &amp; <span class="tok-number">7</span>);</span>
 <span class="line" id="L42"></span>

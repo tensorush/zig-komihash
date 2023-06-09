@@ -1,94 +1,8 @@
 const std = @import("std");
 const tests = @import("tests.zig");
+const utils = @import("utils.zig");
+
 pub const Komirand = @import("Komirand.zig");
-
-/// Cold path for manually-guided branch prediction.
-inline fn coldPath() void {
-    @setCold(true);
-}
-
-/// Likelihood check for manually-guided branch prediction.
-inline fn isLikely(is_likely: bool) bool {
-    if (!is_likely)
-        coldPath();
-    return is_likely;
-}
-
-/// Reads little-endian unsigned 32-bit integer from memory.
-inline fn readInt32(bytes: []const u8) u32 {
-    return std.mem.readIntLittle(u32, @ptrCast(*const [4]u8, bytes));
-}
-
-/// Reads little-endian unsigned 64-bit integer from memory.
-inline fn readInt64(bytes: []const u8) u64 {
-    return std.mem.readIntLittle(u64, @ptrCast(*const [8]u8, bytes));
-}
-
-/// Builds an unsigned 64-bit value out of remaining bytes in a message,
-/// and pads it with the "final byte". This function can only be called
-/// if less than 8 bytes are left to read. The message should be "long",
-/// permitting msg[-3] reads.
-inline fn padLong3(msg: []const u8, idx: usize, len: usize) u64 {
-    std.debug.assert(idx > 2 and len < 8);
-    const ml8 = -8 * @intCast(i8, len);
-    if (len < 4) {
-        const msg3 = msg[idx + len - 3 ..];
-        const m = @intCast(u64, msg3[0]) | @intCast(u64, msg3[1]) << 8 | @intCast(u64, msg3[2]) << 16;
-        return @intCast(u64, 1) << (@intCast(u6, msg3[2] >> 7) + @intCast(u6, -ml8)) | m >> @intCast(u6, 24 + ml8);
-    } else {
-        const mh: u64 = readInt32(msg[idx + len - 4 ..]);
-        const ml: u64 = readInt32(msg[idx .. idx + 4]);
-        return @intCast(u64, 1) << (@intCast(u6, mh >> 31) + @intCast(u6, -ml8)) | ml | (mh >> @intCast(u6, 64 + ml8)) << 32;
-    }
-}
-
-/// Builds an unsigned 64-bit value out of remaining bytes in a message,
-/// and pads it with the "final byte". This function can only be called
-/// if less than 8 bytes are left to read. The message should be "long",
-/// permitting msg[-4] reads.
-inline fn padLong4(msg: []const u8, idx: usize, len: usize) u64 {
-    std.debug.assert(idx > 3 and len < 8);
-    const ml8 = -8 * @intCast(i8, len);
-    if (len < 5) {
-        const m: u64 = readInt32(msg[idx + len - 4 ..]);
-        return @intCast(u64, 1) << (@intCast(u6, m >> 31) + @intCast(u6, -ml8)) | m >> @intCast(u6, 32 + ml8);
-    } else {
-        const m: u64 = readInt64(msg[idx + len - 8 ..]);
-        return @intCast(u64, 1) << (@intCast(u6, m >> 63) + @intCast(u6, -ml8)) | m >> @intCast(u6, 64 + ml8);
-    }
-}
-
-/// Builds an unsigned 64-bit value out of remaining bytes in a message,
-/// and pads it with the "final byte". This function can only be called
-/// if less than 8 bytes are left to read. Can be used on "short"
-/// messages, but msg.len should be greater than 0.
-inline fn padShort(msg: []const u8, idx: usize, len: usize) u64 {
-    std.debug.assert(len > 0 and len < 8);
-    const ml8 = -8 * @intCast(i8, len);
-    if (len < 4) {
-        const mf = msg[idx + len - 1];
-        var m: u64 = msg[idx];
-        if (len > 1) {
-            m |= @intCast(u64, msg[idx + 1]) << 8;
-            if (len > 2) {
-                m |= @intCast(u64, mf) << 16;
-            }
-        }
-        return @intCast(u64, 1) << (@intCast(u6, mf >> 7) + @intCast(u6, -ml8)) | m;
-    } else {
-        const mh: u64 = readInt32(msg[idx + len - 4 ..]);
-        const ml: u64 = readInt32(msg[idx .. idx + 4]);
-        return @intCast(u64, 1) << (@intCast(u6, mh >> 31) + @intCast(u6, -ml8)) | ml | (mh >> @intCast(u6, 64 + ml8)) << 32;
-    }
-}
-
-/// Multiplies two 64-bit unsigned integers and
-/// stores the result in two other 64-bit unsigned integers.
-pub inline fn mul128(a: u64, b: u64, rl: *u64, rh: *u64) void {
-    const r = std.math.mulWide(u128, a, b);
-    rl.* = @truncate(u64, r);
-    rh.* = @truncate(u64, r >> 64);
-}
 
 /// Namespace for one-shot komihash hash function.
 pub const Komihash = struct {
@@ -104,14 +18,14 @@ pub const Komihash = struct {
 
     /// Common hashing round with 16-byte input, using the "r1h" temporary variable.
     inline fn roundInput(msg: []const u8, idx: usize, seed1: *u64, seed5: *u64, r1h: *u64) void {
-        mul128(seed1.* ^ readInt64(msg[idx .. idx + 8]), seed5.* ^ readInt64(msg[idx + 8 .. idx + 16]), seed1, r1h);
+        utils.mul128(seed1.* ^ utils.readInt64(msg[idx .. idx + 8]), seed5.* ^ utils.readInt64(msg[idx + 8 .. idx + 16]), seed1, r1h);
         seed5.* +%= r1h.*;
         seed1.* ^= seed5.*;
     }
 
     /// Common hashing round without input, using the "r2h" temporary variable.
     inline fn round(seed1: *u64, seed5: *u64, r2h: *u64) void {
-        mul128(seed1.*, seed5.*, seed1, r2h);
+        utils.mul128(seed1.*, seed5.*, seed1, r2h);
         seed5.* +%= r2h.*;
         seed1.* ^= seed5.*;
     }
@@ -119,7 +33,7 @@ pub const Komihash = struct {
     /// Common hashing finalization round, with the finish hashing input
     /// expected in the "r1h" and "r2h" temporary variables.
     inline fn finish(seed1: *u64, seed5: *u64, r1h: *u64, r2h: *u64) void {
-        mul128(r1h.*, r2h.*, seed1, r1h);
+        utils.mul128(r1h.*, r2h.*, seed1, r1h);
         seed5.* +%= r1h.*;
         seed1.* ^= seed5.*;
         round(seed1, seed5, r2h);
@@ -136,10 +50,10 @@ pub const Komihash = struct {
         while (true) {
             const i = idx.*;
             @prefetch(msg, .{ .locality = 1 });
-            mul128(seed1.* ^ readInt64(msg[i .. i + 8]), seed5.* ^ readInt64(msg[i + 8 .. i + 16]), seed1, r1h);
-            mul128(seed2.* ^ readInt64(msg[i + 16 .. i + 24]), seed6.* ^ readInt64(msg[i + 24 .. i + 32]), seed2, r2h);
-            mul128(seed3.* ^ readInt64(msg[i + 32 .. i + 40]), seed7.* ^ readInt64(msg[i + 40 .. i + 48]), seed3, r3h);
-            mul128(seed4.* ^ readInt64(msg[i + 48 .. i + 56]), seed8.* ^ readInt64(msg[i + 56 .. i + 64]), seed4, r4h);
+            utils.mul128(seed1.* ^ utils.readInt64(msg[i .. i + 8]), seed5.* ^ utils.readInt64(msg[i + 8 .. i + 16]), seed1, r1h);
+            utils.mul128(seed2.* ^ utils.readInt64(msg[i + 16 .. i + 24]), seed6.* ^ utils.readInt64(msg[i + 24 .. i + 32]), seed2, r2h);
+            utils.mul128(seed3.* ^ utils.readInt64(msg[i + 32 .. i + 40]), seed7.* ^ utils.readInt64(msg[i + 40 .. i + 48]), seed3, r3h);
+            utils.mul128(seed4.* ^ utils.readInt64(msg[i + 48 .. i + 56]), seed8.* ^ utils.readInt64(msg[i + 56 .. i + 64]), seed4, r4h);
             idx.* += 64;
             len.* -= 64;
             seed5.* +%= r1h.*;
@@ -150,7 +64,7 @@ pub const Komihash = struct {
             seed3.* ^= seed6.*;
             seed4.* ^= seed7.*;
             seed1.* ^= seed8.*;
-            if (!isLikely(len.* > 63))
+            if (!utils.isLikely(len.* > 63))
                 break;
         }
     }
@@ -164,7 +78,7 @@ pub const Komihash = struct {
         var i = idx;
         var l = len;
         @prefetch(msg, .{ .locality = 1 });
-        if (isLikely(l > 31)) {
+        if (utils.isLikely(l > 31)) {
             roundInput(msg, i, &s1, &s5, &r1h);
             roundInput(msg, i + 16, &s1, &s5, &r1h);
             i += 32;
@@ -176,10 +90,10 @@ pub const Komihash = struct {
             l -= 16;
         }
         if (l > 7) {
-            r2h = s5 ^ padLong4(msg, i + 8, l - 8);
-            r1h = s1 ^ readInt64(msg[i .. i + 8]);
+            r2h = s5 ^ utils.padLong4(msg, i + 8, l - 8);
+            r1h = s1 ^ utils.readInt64(msg[i .. i + 8]);
         } else {
-            r1h = s1 ^ padLong4(msg, i, l);
+            r1h = s1 ^ utils.padLong4(msg, i, l);
             r2h = s5;
         }
         finish(&s1, &s5, &r1h, &r2h);
@@ -196,27 +110,27 @@ pub const Komihash = struct {
         var idx: usize = 0;
         var len = msg_len;
         round(&seed1, &seed5, &r2h);
-        if (isLikely(len < 16)) {
+        if (utils.isLikely(len < 16)) {
             @prefetch(msg, .{ .locality = 1 });
             r1h = seed1;
             r2h = seed5;
             if (len > 7) {
-                r2h ^= padLong3(msg, idx + 8, len - 8);
-                r1h ^= readInt64(msg[idx .. idx + 8]);
-            } else if (isLikely(len != 0)) {
-                r1h ^= padShort(msg, idx, len);
+                r2h ^= utils.padLong3(msg, idx + 8, len - 8);
+                r1h ^= utils.readInt64(msg[idx .. idx + 8]);
+            } else if (utils.isLikely(len != 0)) {
+                r1h ^= utils.padShort(msg, idx, len);
             }
             finish(&seed1, &seed5, &r1h, &r2h);
             return seed1;
         }
-        if (isLikely(len < 32)) {
+        if (utils.isLikely(len < 32)) {
             @prefetch(msg, .{ .locality = 1 });
             roundInput(msg, idx, &seed1, &seed5, &r1h);
             if (len > 23) {
-                r2h = seed5 ^ padLong4(msg, idx + 24, len - 24);
-                r1h = seed1 ^ readInt64(msg[idx + 16 .. idx + 24]);
+                r2h = seed5 ^ utils.padLong4(msg, idx + 24, len - 24);
+                r1h = seed1 ^ utils.readInt64(msg[idx + 16 .. idx + 24]);
             } else {
-                r1h = seed1 ^ padLong4(msg, idx + 16, len - 16);
+                r1h = seed1 ^ utils.padLong4(msg, idx + 16, len - 16);
                 r2h = seed5;
             }
             finish(&seed1, &seed5, &r1h, &r2h);
