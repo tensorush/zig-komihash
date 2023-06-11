@@ -8,7 +8,9 @@ const utils = @import("utils.zig");
 
 const Komirand = @This();
 
+/// Base seed.
 seed1: u64 = 0,
+/// Extra seed.
 seed2: u64 = 0,
 
 /// Initializes PRNG with one seed.
