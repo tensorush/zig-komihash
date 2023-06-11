@@ -22,9 +22,10 @@ pub fn build(b: *Builder) void {
         .target = target,
         .optimize = optimize,
     });
+    const run_tests = b.addRunArtifact(tests);
 
     const tests_step = b.step("test", "Run tests");
-    tests_step.dependOn(&tests.step);
+    tests_step.dependOn(&run_tests.step);
 
     const fmt = b.addFmt(.{
         .paths = &[_][]const u8{ "src", "build.zig" },
