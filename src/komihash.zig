@@ -4,7 +4,7 @@ const utils = @import("utils.zig");
 
 pub const Komirand = @import("Komirand.zig");
 
-/// Namespace for one-shot komihash hash function.
+/// Komihash hash function namespace.
 pub const Komihash = struct {
     /// Hashes the message with default seed.
     pub inline fn hash(msg: []const u8) u64 {
@@ -70,7 +70,7 @@ pub const Komihash = struct {
     }
 
     /// The hashing epilogue function.
-    inline fn epilogue(msg: []const u8, idx: usize, len: usize, seed1: u64, seed5: u64) u64 {
+    inline fn epilogue(msg: []const u8, idx: usize, len: usize, seed1: u64, seed5: u64, last_word_opt: ?[8]u8) u64 {
         var r1h: u64 = undefined;
         var r2h: u64 = undefined;
         var s1 = seed1;
@@ -90,10 +90,10 @@ pub const Komihash = struct {
             l -= 16;
         }
         if (l > 7) {
-            r2h = s5 ^ utils.padLong4(msg, i + 8, l - 8);
+            r2h = s5 ^ utils.padLong4(msg, i + 8, l - 8, last_word_opt);
             r1h = s1 ^ utils.readInt64(msg[i .. i + 8]);
         } else {
-            r1h = s1 ^ utils.padLong4(msg, i, l);
+            r1h = s1 ^ utils.padLong4(msg, i, l, last_word_opt);
             r2h = s5;
         }
         finish(&s1, &s5, &r1h, &r2h);
@@ -127,10 +127,10 @@ pub const Komihash = struct {
             @prefetch(msg, .{ .locality = 1 });
             roundInput(msg, idx, &seed1, &seed5, &r1h);
             if (len > 23) {
-                r2h = seed5 ^ utils.padLong4(msg, idx + 24, len - 24);
+                r2h = seed5 ^ utils.padLong4(msg, idx + 24, len - 24, null);
                 r1h = seed1 ^ utils.readInt64(msg[idx + 16 .. idx + 24]);
             } else {
-                r1h = seed1 ^ utils.padLong4(msg, idx + 16, len - 16);
+                r1h = seed1 ^ utils.padLong4(msg, idx + 16, len - 16, null);
                 r2h = seed5;
             }
             finish(&seed1, &seed5, &r1h, &r2h);
@@ -149,7 +149,7 @@ pub const Komihash = struct {
             seed5 ^= seed6 ^ seed7 ^ seed8;
             seed1 ^= seed2 ^ seed3 ^ seed4;
         }
-        return epilogue(msg, idx, len, seed1, seed5);
+        return epilogue(msg, idx, len, seed1, seed5, null);
     }
 };
 
@@ -161,6 +161,7 @@ pub const KomihashStream = struct {
     buf: [BUF_SIZE]u8 = undefined,
     seeds: [8]u64 = undefined,
     is_hashing: bool = false,
+    last_word_opt: ?[8]u8 = null,
     buf_fill: usize = 0,
 
     /// Initializes the streamed hashing session.
@@ -181,10 +182,10 @@ pub const KomihashStream = struct {
         if (did_fit) {
             const copy_len = BUF_SIZE - buf_fill;
             std.mem.copy(u8, self.buf[buf_fill..], msg[0..copy_len]);
-            buf_fill = 0;
             sw_idx = idx + copy_len;
             sw_len = len - copy_len;
             len = BUF_SIZE;
+            buf_fill = 0;
         } else if (len < 9) {
             var op = self.buf[buf_fill..];
             if (len == 4) {
@@ -237,10 +238,7 @@ pub const KomihashStream = struct {
                     seed7 = 0xC0AC29B7C97C50DD ^ seed5;
                     seed8 = 0x3F84D5B5B5470917 ^ seed5;
                 }
-                if (did_fit)
-                    Komihash.loop(self.buf[0..], &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8, &r1h, &r2h, &r3h, &r4h)
-                else
-                    Komihash.loop(msg, &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8, &r1h, &r2h, &r3h, &r4h);
+                Komihash.loop(msg, &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8, &r1h, &r2h, &r3h, &r4h);
                 self.seeds[0] = seed1;
                 self.seeds[1] = seed2;
                 self.seeds[2] = seed3;
@@ -252,6 +250,7 @@ pub const KomihashStream = struct {
                 if (sw_len == 0) {
                     if (len == 0) {
                         self.buf_fill = 0;
+                        self.last_word_opt = [1]u8{0} ** 7 ++ [1]u8{msg[idx - 1]};
                         return {};
                     }
                     break;
@@ -261,10 +260,7 @@ pub const KomihashStream = struct {
                 sw_len = 0;
             }
         }
-        if (did_fit)
-            std.mem.copy(u8, self.buf[buf_fill..], self.buf[0..len])
-        else
-            std.mem.copy(u8, self.buf[buf_fill..], msg[0..len]);
+        std.mem.copy(u8, self.buf[buf_fill..], msg[idx .. idx + len]);
         self.buf_fill = buf_fill + len;
     }
 
@@ -277,6 +273,15 @@ pub const KomihashStream = struct {
         var idx: usize = 0;
         if (self.is_hashing == false)
             return Komihash.komihash(msg, len, self.seeds[0]);
+        if (self.last_word_opt == null and len < 9) {
+            var last_word = [1]u8{0} ** 8;
+            var i = 8 - len;
+            for (msg) |byte| {
+                last_word[i] = byte;
+                i += 1;
+            }
+            self.last_word_opt = last_word;
+        }
         var seed1 = self.seeds[0];
         var seed2 = self.seeds[1];
         var seed3 = self.seeds[2];
@@ -294,7 +299,7 @@ pub const KomihashStream = struct {
         }
         seed5 ^= seed6 ^ seed7 ^ seed8;
         seed1 ^= seed2 ^ seed3 ^ seed4;
-        return Komihash.epilogue(msg, idx, len, seed1, seed5);
+        return Komihash.epilogue(msg, idx, len, seed1, seed5, self.last_word_opt);
     }
 };
 
@@ -307,9 +312,17 @@ test "Komihash" {
 
 test "KomihashStream" {
     for (tests.KOMIHASH_HASHES, 0..) |hashes, i| {
+        var stream = KomihashStream.init(0);
+        stream.update(tests.KOMIHASH_MSGS[i]);
+        try std.testing.expectEqual(hashes[0], stream.finish());
+
+        stream = KomihashStream.init(hashes[2]);
+        stream.update(tests.KOMIHASH_MSGS[i]);
+        try std.testing.expectEqual(hashes[1], stream.finish());
+
         var len: u8 = 1;
         while (len < 128) : (len += 1) {
-            var stream = KomihashStream.init(0);
+            stream = KomihashStream.init(0);
             var msg = tests.KOMIHASH_MSGS[i];
             while (msg.len > 0) {
                 const slice = msg[0..std.math.min(msg.len, len)];
@@ -327,13 +340,5 @@ test "KomihashStream" {
             }
             try std.testing.expectEqual(hashes[1], stream.finish());
         }
-
-        // var stream = KomihashStream.init(0);
-        // stream.update(tests.KOMIHASH_MSGS[i]);
-        // try std.testing.expectEqual(hashes[0], stream.finish());
-
-        // stream = KomihashStream.init(hashes[2]);
-        // stream.update(tests.KOMIHASH_MSGS[i]);
-        // try std.testing.expectEqual(hashes[1], stream.finish());
     }
 }

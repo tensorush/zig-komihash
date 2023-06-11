@@ -25,4 +25,12 @@ pub fn build(b: *Builder) void {
 
     const tests_step = b.step("test", "Run tests");
     tests_step.dependOn(&tests.step);
+
+    const fmt = b.addFmt(.{
+        .paths = &[_][]const u8{ "src", "build.zig" },
+        .check = true,
+    });
+
+    const fmt_step = b.step("fmt", "Run linter");
+    fmt_step.dependOn(&fmt.step);
 }

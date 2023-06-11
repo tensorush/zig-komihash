@@ -9,7 +9,6 @@
 
 #### :memo: TODO
 
-- [ ] Fix `KomihashStream` on updates with message length > 127
 - [ ] Benchmark `KomihashStream` against other `std.hash` functions
 
 <!-- MARKDOWN LINKS -->

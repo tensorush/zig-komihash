@@ -1,5 +1,7 @@
 const std = @import("std");
 
+// - fix int types at readInt call sites
+
 /// Cold path for manually-guided branch prediction.
 pub inline fn coldPath() void {
     @setCold(true);
@@ -27,7 +29,6 @@ pub inline fn readInt64(bytes: []const u8) u64 {
 /// if less than 8 bytes are left to read. The message should be "long",
 /// permitting msg[-3] reads.
 pub inline fn padLong3(msg: []const u8, idx: usize, len: usize) u64 {
-    std.debug.assert(idx > 2 and len < 8);
     const ml8 = -8 * @intCast(i8, len);
     if (len < 4) {
         const msg3 = msg[idx + len - 3 ..];
@@ -44,14 +45,22 @@ pub inline fn padLong3(msg: []const u8, idx: usize, len: usize) u64 {
 /// and pads it with the "final byte". This function can only be called
 /// if less than 8 bytes are left to read. The message should be "long",
 /// permitting msg[-4] reads.
-pub inline fn padLong4(msg: []const u8, idx: usize, len: usize) u64 {
-    std.debug.assert(idx > 3 and len < 8);
+pub inline fn padLong4(msg: []const u8, idx: usize, len: usize, last_word_opt: ?[8]u8) u64 {
     const ml8 = -8 * @intCast(i8, len);
+    if (last_word_opt) |last_word| {
+        if (len < 5) {
+            const m: u64 = readInt32(last_word[4..]);
+            return @intCast(u64, 1) << (@intCast(u6, m >> 31) + @intCast(u6, -ml8)) | m >> @intCast(u6, 32 + ml8);
+        } else {
+            const m = readInt64(last_word[0..]);
+            return @intCast(u64, 1) << (@intCast(u6, m >> 63) + @intCast(u6, -ml8)) | m >> @intCast(u6, 64 + ml8);
+        }
+    }
     if (len < 5) {
         const m: u64 = readInt32(msg[idx + len - 4 ..]);
         return @intCast(u64, 1) << (@intCast(u6, m >> 31) + @intCast(u6, -ml8)) | m >> @intCast(u6, 32 + ml8);
     } else {
-        const m: u64 = readInt64(msg[idx + len - 8 ..]);
+        const m = readInt64(msg[idx + len - 8 ..]);
         return @intCast(u64, 1) << (@intCast(u6, m >> 63) + @intCast(u6, -ml8)) | m >> @intCast(u6, 64 + ml8);
     }
 }
@@ -61,7 +70,6 @@ pub inline fn padLong4(msg: []const u8, idx: usize, len: usize) u64 {
 /// if less than 8 bytes are left to read. Can be used on "short"
 /// messages, but msg.len should be greater than 0.
 pub inline fn padShort(msg: []const u8, idx: usize, len: usize) u64 {
-    std.debug.assert(len > 0 and len < 8);
     const ml8 = -8 * @intCast(i8, len);
     if (len < 4) {
         const mf = msg[idx + len - 1];

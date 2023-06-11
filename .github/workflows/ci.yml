@@ -15,24 +15,29 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - name: Checkout Repo
+      - name: Check out repo
         uses: actions/checkout@v3
-      - name: Setup Zig
+
+      - name: Set up Zig
         uses: goto-bus-stop/setup-zig@v2
         with:
           version: master
-      - name: Run tests
+
+      - name: Run CI
         run: |
           zig env
           zig build test
+
   lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repo
+      - name: Check out repo
         uses: actions/checkout@v3
-      - name: Setup Zig
+
+      - name: Set up Zig
         uses: goto-bus-stop/setup-zig@v2
         with:
           version: master
+
       - name: Run linter
-        run: zig fmt --check ./
+        run: zig build fmt
