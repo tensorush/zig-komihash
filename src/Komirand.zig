@@ -63,9 +63,9 @@ pub inline fn fill(self: *Komirand, buf: []u8) void {
 }
 
 test "Komirand" {
-    for (tests.KOMIRAND_SEEDS, 0..) |seed, i| {
+    for (tests.SEEDS, 0..) |seed, i| {
         var komirand = Komirand.init(seed);
-        for (tests.KOMIRAND_VALUES[i]) |value| {
+        for (tests.VALUES[i]) |value| {
             try std.testing.expectEqual(value, komirand.next());
         }
     }

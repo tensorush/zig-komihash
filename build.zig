@@ -7,6 +7,7 @@ pub fn build(b: *Builder) (std.process.ArgIterator.InitError || error{ Overflow,
         .root_source_file = .{ .path = "src/komihash.zig" },
         .target = b.standardTargetOptions(.{}),
         .optimize = .ReleaseSafe,
+        .version = .{ .major = 5, .minor = 0 },
     });
     lib.emit_docs = .emit;
     b.installArtifact(lib);

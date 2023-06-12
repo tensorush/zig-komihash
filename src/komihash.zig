@@ -36,10 +36,10 @@ pub const KomihashStateless = struct {
         while (true) {
             const i = idx.*;
             @prefetch(msg, .{ .locality = 1 });
-            utils.mul128(seed1.* ^ utils.readInt64(msg[i .. i + 8]), seed5.* ^ utils.readInt64(msg[i + 8 .. i + 16]), seed1, r1h);
-            utils.mul128(seed2.* ^ utils.readInt64(msg[i + 16 .. i + 24]), seed6.* ^ utils.readInt64(msg[i + 24 .. i + 32]), seed2, r2h);
-            utils.mul128(seed3.* ^ utils.readInt64(msg[i + 32 .. i + 40]), seed7.* ^ utils.readInt64(msg[i + 40 .. i + 48]), seed3, r3h);
-            utils.mul128(seed4.* ^ utils.readInt64(msg[i + 48 .. i + 56]), seed8.* ^ utils.readInt64(msg[i + 56 .. i + 64]), seed4, r4h);
+            utils.mul128(seed1.* ^ utils.readInt64(msg[i .. i + 8]), seed5.* ^ utils.readInt64(msg[i + 32 .. i + 40]), seed1, r1h);
+            utils.mul128(seed2.* ^ utils.readInt64(msg[i + 8 .. i + 16]), seed6.* ^ utils.readInt64(msg[i + 40 .. i + 48]), seed2, r2h);
+            utils.mul128(seed3.* ^ utils.readInt64(msg[i + 16 .. i + 24]), seed7.* ^ utils.readInt64(msg[i + 48 .. i + 56]), seed3, r3h);
+            utils.mul128(seed4.* ^ utils.readInt64(msg[i + 24 .. i + 32]), seed8.* ^ utils.readInt64(msg[i + 56 .. i + 64]), seed4, r4h);
             idx.* += 64;
             len.* -= 64;
             seed5.* +%= r1h.*;
@@ -141,7 +141,7 @@ pub const KomihashStateless = struct {
 /// Komihash structure holding streamed hashing state.
 pub const Komihash = struct {
     /// Streamed hashing buffer capacity, must be a multiple of 64, and not less than 128.
-    const BUF_CAPACITY = 256;
+    const BUF_CAPACITY = 768;
 
     /// Buffer for storing the hashing state.
     buf: [BUF_CAPACITY]u8 = undefined,
@@ -176,7 +176,7 @@ pub const Komihash = struct {
             len = BUF_CAPACITY;
             buf_len = 0;
             idx = 0;
-        } else if (len < 9) {
+        } else if (len < 33) {
             var op = self.buf[buf_len..];
             if (len == 4) {
                 std.mem.copy(u8, op, msg[0..4]);
@@ -188,8 +188,10 @@ pub const Komihash = struct {
                 self.buf_len = buf_len + 8;
                 return {};
             }
-            std.mem.copy(u8, op, msg[0..len]);
-            self.buf_len = buf_len + len;
+            if (len > 0) {
+                self.buf_len = buf_len + len;
+                std.mem.copy(u8, op, msg[0..len]);
+            }
             return {};
         }
         if (buf_len == 0) {
@@ -298,42 +300,31 @@ pub const Komihash = struct {
 };
 
 test "KomihashStateless" {
-    for (tests.KOMIHASH_HASHES, 0..) |hashes, i| {
-        try std.testing.expectEqual(hashes[0], KomihashStateless.hash(0, tests.KOMIHASH_MSGS[i]));
-        try std.testing.expectEqual(hashes[1], KomihashStateless.hash(hashes[2], tests.KOMIHASH_MSGS[i]));
+    for (tests.SEEDS, 0..) |seed, i| {
+        for (tests.HASHES[i], 0..) |hash, j| {
+            try std.testing.expectEqual(hash, KomihashStateless.hash(seed, tests.MSGS[j]));
+        }
     }
 }
 
 test "Komihash" {
-    for (tests.KOMIHASH_HASHES, 0..) |hashes, i| {
-        if (hashes[0] != 0xC990E13513F56CAC) continue;
-        var stream = Komihash.init(0);
-        stream.update(tests.KOMIHASH_MSGS[i]);
-        try std.testing.expectEqual(hashes[0], stream.final());
+    for (tests.SEEDS, 0..) |seed, i| {
+        for (tests.HASHES[i], 0..) |hash, j| {
+            var stream = Komihash.init(seed);
+            stream.update(tests.MSGS[j]);
+            try std.testing.expectEqual(hash, stream.final());
 
-        stream = Komihash.init(hashes[2]);
-        stream.update(tests.KOMIHASH_MSGS[i]);
-        try std.testing.expectEqual(hashes[1], stream.final());
-
-        var len: u8 = 1;
-        while (len < 128) : (len += 1) {
-            stream = Komihash.init(0);
-            var msg = tests.KOMIHASH_MSGS[i];
-            while (msg.len > 0) {
-                const slice = msg[0..std.math.min(msg.len, len)];
-                msg = msg[slice.len..];
-                stream.update(slice);
+            var len: u8 = 1;
+            while (len < 128) : (len += 1) {
+                stream = Komihash.init(seed);
+                var msg = tests.MSGS[j];
+                while (msg.len > 0) {
+                    const slice = msg[0..std.math.min(msg.len, len)];
+                    msg = msg[slice.len..];
+                    stream.update(slice);
+                }
+                try std.testing.expectEqual(hash, stream.final());
             }
-            try std.testing.expectEqual(hashes[0], stream.final());
-
-            stream = Komihash.init(hashes[2]);
-            msg = tests.KOMIHASH_MSGS[i];
-            while (msg.len > 0) {
-                const slice = msg[0..std.math.min(msg.len, len)];
-                msg = msg[slice.len..];
-                stream.update(slice);
-            }
-            try std.testing.expectEqual(hashes[1], stream.final());
         }
     }
 }
