@@ -178,9 +178,9 @@
 <span class="line" id="L63">}</span>
 <span class="line" id="L64"></span>
 <span class="line" id="L65"><span class="tok-kw">test</span> <span class="tok-str">&quot;Komirand&quot;</span> {</span>
-<span class="line" id="L66">    <span class="tok-kw">for</span> (tests.KOMIRAND_SEEDS, <span class="tok-number">0</span>..) |seed, i| {</span>
+<span class="line" id="L66">    <span class="tok-kw">for</span> (tests.SEEDS, <span class="tok-number">0</span>..) |seed, i| {</span>
 <span class="line" id="L67">        <span class="tok-kw">var</span> komirand = Komirand.init(seed);</span>
-<span class="line" id="L68">        <span class="tok-kw">for</span> (tests.KOMIRAND_VALUES[i]) |value| {</span>
+<span class="line" id="L68">        <span class="tok-kw">for</span> (tests.VALUES[i]) |value| {</span>
 <span class="line" id="L69">            <span class="tok-kw">try</span> std.testing.expectEqual(value, komirand.next());</span>
 <span class="line" id="L70">        }</span>
 <span class="line" id="L71">    }</span>

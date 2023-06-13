@@ -140,63 +140,62 @@
 <span class="line" id="L27"><span class="tok-comment">/// Builds an unsigned 64-bit value out of remaining bytes in a message, and pads it with the &quot;final byte&quot;.</span></span>
 <span class="line" id="L28"><span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">padLong3</span>(msg: []<span class="tok-kw">const</span> <span class="tok-type">u8</span>, idx: <span class="tok-type">usize</span>, len: <span class="tok-type">usize</span>) <span class="tok-type">u64</span> {</span>
 <span class="line" id="L29">    std.debug.assert(len &lt; <span class="tok-number">8</span>);</span>
-<span class="line" id="L30">    <span class="tok-kw">const</span> ml8 = -<span class="tok-number">8</span> * <span class="tok-builtin">@intCast</span>(<span class="tok-type">i8</span>, len);</span>
+<span class="line" id="L30">    <span class="tok-kw">const</span> ml8 = <span class="tok-number">8</span> * <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, len);</span>
 <span class="line" id="L31">    <span class="tok-kw">if</span> (len &lt; <span class="tok-number">4</span>) {</span>
 <span class="line" id="L32">        <span class="tok-kw">const</span> msg3 = msg[idx + len - <span class="tok-number">3</span> ..];</span>
 <span class="line" id="L33">        <span class="tok-kw">const</span> m = <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, msg3[<span class="tok-number">0</span>]) | <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, msg3[<span class="tok-number">1</span>]) &lt;&lt; <span class="tok-number">8</span> | <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, msg3[<span class="tok-number">2</span>]) &lt;&lt; <span class="tok-number">16</span>;</span>
-<span class="line" id="L34">        <span class="tok-kw">return</span> <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, <span class="tok-number">1</span>) &lt;&lt; (<span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, msg3[<span class="tok-number">2</span>] &gt;&gt; <span class="tok-number">7</span>) + <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, -ml8)) | m &gt;&gt; <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, <span class="tok-number">24</span> + ml8);</span>
+<span class="line" id="L34">        <span class="tok-kw">return</span> <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, <span class="tok-number">1</span>) &lt;&lt; ml8 | m &gt;&gt; (<span class="tok-number">24</span> - ml8);</span>
 <span class="line" id="L35">    }</span>
 <span class="line" id="L36">    <span class="tok-kw">const</span> mh: <span class="tok-type">u64</span> = readInt32(msg[idx + len - <span class="tok-number">4</span> ..]);</span>
 <span class="line" id="L37">    <span class="tok-kw">const</span> ml: <span class="tok-type">u64</span> = readInt32(msg[idx .. idx + <span class="tok-number">4</span>]);</span>
-<span class="line" id="L38">    <span class="tok-kw">return</span> <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, <span class="tok-number">1</span>) &lt;&lt; (<span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, mh &gt;&gt; <span class="tok-number">31</span>) + <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, -ml8)) | ml | (mh &gt;&gt; <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, <span class="tok-number">64</span> + ml8)) &lt;&lt; <span class="tok-number">32</span>;</span>
+<span class="line" id="L38">    <span class="tok-kw">return</span> <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, <span class="tok-number">1</span>) &lt;&lt; ml8 | ml | (mh &gt;&gt; <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, <span class="tok-number">64</span> - <span class="tok-builtin">@intCast</span>(<span class="tok-type">u7</span>, ml8))) &lt;&lt; <span class="tok-number">32</span>;</span>
 <span class="line" id="L39">}</span>
 <span class="line" id="L40"></span>
 <span class="line" id="L41"><span class="tok-comment">/// Builds an unsigned 64-bit value out of remaining bytes in a message, and pads it with the &quot;final byte&quot;.</span></span>
-<span class="line" id="L42"><span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">padLong4</span>(msg: []<span class="tok-kw">const</span> <span class="tok-type">u8</span>, idx: <span class="tok-type">usize</span>, len: <span class="tok-type">usize</span>, last_word_opt: ?[<span class="tok-number">8</span>]<span class="tok-type">u8</span>) <span class="tok-type">u64</span> {</span>
-<span class="line" id="L43">    std.debug.assert(len &lt; <span class="tok-number">8</span>);</span>
-<span class="line" id="L44">    <span class="tok-kw">const</span> ml8 = -<span class="tok-number">8</span> * <span class="tok-builtin">@intCast</span>(<span class="tok-type">i8</span>, len);</span>
-<span class="line" id="L45">    <span class="tok-kw">if</span> (last_word_opt) |last_word| {</span>
-<span class="line" id="L46">        <span class="tok-kw">if</span> (len &lt; <span class="tok-number">5</span>) {</span>
-<span class="line" id="L47">            <span class="tok-kw">const</span> m: <span class="tok-type">u64</span> = readInt32(last_word[<span class="tok-number">4</span>..]);</span>
-<span class="line" id="L48">            <span class="tok-kw">return</span> <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, <span class="tok-number">1</span>) &lt;&lt; (<span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, m &gt;&gt; <span class="tok-number">31</span>) + <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, -ml8)) | m &gt;&gt; <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, <span class="tok-number">32</span> + ml8);</span>
-<span class="line" id="L49">        }</span>
-<span class="line" id="L50">        <span class="tok-kw">const</span> m = readInt64(last_word[<span class="tok-number">0</span>..]);</span>
-<span class="line" id="L51">        <span class="tok-kw">return</span> <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, <span class="tok-number">1</span>) &lt;&lt; (<span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, m &gt;&gt; <span class="tok-number">63</span>) + <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, -ml8)) | m &gt;&gt; <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, <span class="tok-number">64</span> + ml8);</span>
-<span class="line" id="L52">    }</span>
-<span class="line" id="L53">    <span class="tok-kw">if</span> (len &lt; <span class="tok-number">5</span>) {</span>
-<span class="line" id="L54">        <span class="tok-kw">const</span> m: <span class="tok-type">u64</span> = readInt32(msg[idx + len - <span class="tok-number">4</span> ..]);</span>
-<span class="line" id="L55">        <span class="tok-kw">return</span> <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, <span class="tok-number">1</span>) &lt;&lt; (<span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, m &gt;&gt; <span class="tok-number">31</span>) + <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, -ml8)) | m &gt;&gt; <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, <span class="tok-number">32</span> + ml8);</span>
-<span class="line" id="L56">    }</span>
-<span class="line" id="L57">    <span class="tok-kw">const</span> m = readInt64(msg[idx + len - <span class="tok-number">8</span> ..]);</span>
-<span class="line" id="L58">    <span class="tok-kw">return</span> <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, <span class="tok-number">1</span>) &lt;&lt; (<span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, m &gt;&gt; <span class="tok-number">63</span>) + <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, -ml8)) | m &gt;&gt; <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, <span class="tok-number">64</span> + ml8);</span>
-<span class="line" id="L59">}</span>
-<span class="line" id="L60"></span>
-<span class="line" id="L61"><span class="tok-comment">/// Builds an unsigned 64-bit value out of remaining bytes in a message, and pads it with the &quot;final byte&quot;.</span></span>
-<span class="line" id="L62"><span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">padShort</span>(msg: []<span class="tok-kw">const</span> <span class="tok-type">u8</span>, idx: <span class="tok-type">usize</span>, len: <span class="tok-type">usize</span>) <span class="tok-type">u64</span> {</span>
-<span class="line" id="L63">    std.debug.assert(len &gt; <span class="tok-number">0</span> <span class="tok-kw">and</span> len &lt; <span class="tok-number">8</span>);</span>
-<span class="line" id="L64">    <span class="tok-kw">const</span> ml8 = -<span class="tok-number">8</span> * <span class="tok-builtin">@intCast</span>(<span class="tok-type">i8</span>, len);</span>
-<span class="line" id="L65">    <span class="tok-kw">if</span> (len &lt; <span class="tok-number">4</span>) {</span>
-<span class="line" id="L66">        <span class="tok-kw">const</span> mf = msg[idx + len - <span class="tok-number">1</span>];</span>
-<span class="line" id="L67">        <span class="tok-kw">var</span> m: <span class="tok-type">u64</span> = msg[idx];</span>
-<span class="line" id="L68">        <span class="tok-kw">if</span> (len &gt; <span class="tok-number">1</span>) {</span>
-<span class="line" id="L69">            m |= <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, msg[idx + <span class="tok-number">1</span>]) &lt;&lt; <span class="tok-number">8</span>;</span>
-<span class="line" id="L70">            <span class="tok-kw">if</span> (len &gt; <span class="tok-number">2</span>) {</span>
-<span class="line" id="L71">                m |= <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, mf) &lt;&lt; <span class="tok-number">16</span>;</span>
-<span class="line" id="L72">            }</span>
-<span class="line" id="L73">        }</span>
-<span class="line" id="L74">        <span class="tok-kw">return</span> <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, <span class="tok-number">1</span>) &lt;&lt; (<span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, mf &gt;&gt; <span class="tok-number">7</span>) + <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, -ml8)) | m;</span>
+<span class="line" id="L42"><span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">padShort</span>(msg: []<span class="tok-kw">const</span> <span class="tok-type">u8</span>, idx: <span class="tok-type">usize</span>, len: <span class="tok-type">usize</span>) <span class="tok-type">u64</span> {</span>
+<span class="line" id="L43">    std.debug.assert(len &gt; <span class="tok-number">0</span> <span class="tok-kw">and</span> len &lt; <span class="tok-number">8</span>);</span>
+<span class="line" id="L44">    <span class="tok-kw">const</span> ml8 = <span class="tok-number">8</span> * <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, len);</span>
+<span class="line" id="L45">    <span class="tok-kw">if</span> (len &lt; <span class="tok-number">4</span>) {</span>
+<span class="line" id="L46">        <span class="tok-kw">var</span> m: <span class="tok-type">u64</span> = msg[idx];</span>
+<span class="line" id="L47">        <span class="tok-kw">if</span> (len &gt; <span class="tok-number">1</span>) {</span>
+<span class="line" id="L48">            m |= <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, msg[idx + <span class="tok-number">1</span>]) &lt;&lt; <span class="tok-number">8</span>;</span>
+<span class="line" id="L49">            <span class="tok-kw">if</span> (len &gt; <span class="tok-number">2</span>) {</span>
+<span class="line" id="L50">                m |= <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, msg[<span class="tok-number">2</span>]) &lt;&lt; <span class="tok-number">16</span>;</span>
+<span class="line" id="L51">            }</span>
+<span class="line" id="L52">        }</span>
+<span class="line" id="L53">        <span class="tok-kw">return</span> <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, <span class="tok-number">1</span>) &lt;&lt; ml8 | m;</span>
+<span class="line" id="L54">    }</span>
+<span class="line" id="L55">    <span class="tok-kw">const</span> mh: <span class="tok-type">u64</span> = readInt32(msg[idx + len - <span class="tok-number">4</span> ..]);</span>
+<span class="line" id="L56">    <span class="tok-kw">const</span> ml: <span class="tok-type">u64</span> = readInt32(msg[idx .. idx + <span class="tok-number">4</span>]);</span>
+<span class="line" id="L57">    <span class="tok-kw">return</span> <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, <span class="tok-number">1</span>) &lt;&lt; ml8 | ml | (mh &gt;&gt; <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, <span class="tok-number">64</span> - <span class="tok-builtin">@intCast</span>(<span class="tok-type">u7</span>, ml8))) &lt;&lt; <span class="tok-number">32</span>;</span>
+<span class="line" id="L58">}</span>
+<span class="line" id="L59"></span>
+<span class="line" id="L60"><span class="tok-comment">/// Builds an unsigned 64-bit value out of remaining bytes in a message, and pads it with the &quot;final byte&quot;.</span></span>
+<span class="line" id="L61"><span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">padLong4</span>(msg: []<span class="tok-kw">const</span> <span class="tok-type">u8</span>, idx: <span class="tok-type">usize</span>, len: <span class="tok-type">usize</span>, last_word_opt: ?[<span class="tok-number">8</span>]<span class="tok-type">u8</span>) <span class="tok-type">u64</span> {</span>
+<span class="line" id="L62">    std.debug.assert(len &lt; <span class="tok-number">8</span>);</span>
+<span class="line" id="L63">    <span class="tok-kw">const</span> ml8 = <span class="tok-number">8</span> * <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, len);</span>
+<span class="line" id="L64">    <span class="tok-kw">if</span> (last_word_opt) |last_word| {</span>
+<span class="line" id="L65">        <span class="tok-kw">if</span> (len &lt; <span class="tok-number">5</span>) {</span>
+<span class="line" id="L66">            <span class="tok-kw">const</span> m: <span class="tok-type">u64</span> = readInt32(last_word[<span class="tok-number">4</span>..]);</span>
+<span class="line" id="L67">            <span class="tok-kw">return</span> <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, <span class="tok-number">1</span>) &lt;&lt; ml8 | m &gt;&gt; (<span class="tok-number">32</span> - ml8);</span>
+<span class="line" id="L68">        }</span>
+<span class="line" id="L69">        <span class="tok-kw">const</span> m = readInt64(last_word[<span class="tok-number">0</span>..]);</span>
+<span class="line" id="L70">        <span class="tok-kw">return</span> <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, <span class="tok-number">1</span>) &lt;&lt; ml8 | m &gt;&gt; <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, <span class="tok-number">64</span> - <span class="tok-builtin">@intCast</span>(<span class="tok-type">u7</span>, ml8));</span>
+<span class="line" id="L71">    }</span>
+<span class="line" id="L72">    <span class="tok-kw">if</span> (len &lt; <span class="tok-number">5</span>) {</span>
+<span class="line" id="L73">        <span class="tok-kw">const</span> m: <span class="tok-type">u64</span> = readInt32(msg[idx + len - <span class="tok-number">4</span> ..]);</span>
+<span class="line" id="L74">        <span class="tok-kw">return</span> <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, <span class="tok-number">1</span>) &lt;&lt; ml8 | m &gt;&gt; (<span class="tok-number">32</span> - ml8);</span>
 <span class="line" id="L75">    }</span>
-<span class="line" id="L76">    <span class="tok-kw">const</span> mh: <span class="tok-type">u64</span> = readInt32(msg[idx + len - <span class="tok-number">4</span> ..]);</span>
-<span class="line" id="L77">    <span class="tok-kw">const</span> ml: <span class="tok-type">u64</span> = readInt32(msg[idx .. idx + <span class="tok-number">4</span>]);</span>
-<span class="line" id="L78">    <span class="tok-kw">return</span> <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, <span class="tok-number">1</span>) &lt;&lt; (<span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, mh &gt;&gt; <span class="tok-number">31</span>) + <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, -ml8)) | ml | (mh &gt;&gt; <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, <span class="tok-number">64</span> + ml8)) &lt;&lt; <span class="tok-number">32</span>;</span>
-<span class="line" id="L79">}</span>
-<span class="line" id="L80"></span>
-<span class="line" id="L81"><span class="tok-comment">/// Multiplies two 64-bit unsigned integers, and stores the result in two other 64-bit unsigned integers.</span></span>
-<span class="line" id="L82"><span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">mul128</span>(a: <span class="tok-type">u64</span>, b: <span class="tok-type">u64</span>, rl: *<span class="tok-type">u64</span>, rh: *<span class="tok-type">u64</span>) <span class="tok-type">void</span> {</span>
-<span class="line" id="L83">    <span class="tok-kw">const</span> r = std.math.mulWide(<span class="tok-type">u128</span>, a, b);</span>
-<span class="line" id="L84">    rl.* = <span class="tok-builtin">@truncate</span>(<span class="tok-type">u64</span>, r);</span>
-<span class="line" id="L85">    rh.* = <span class="tok-builtin">@truncate</span>(<span class="tok-type">u64</span>, r &gt;&gt; <span class="tok-number">64</span>);</span>
-<span class="line" id="L86">}</span>
-<span class="line" id="L87"></span>
+<span class="line" id="L76">    <span class="tok-kw">const</span> m = readInt64(msg[idx + len - <span class="tok-number">8</span> ..]);</span>
+<span class="line" id="L77">    <span class="tok-kw">return</span> <span class="tok-builtin">@intCast</span>(<span class="tok-type">u64</span>, <span class="tok-number">1</span>) &lt;&lt; ml8 | m &gt;&gt; <span class="tok-builtin">@intCast</span>(<span class="tok-type">u6</span>, <span class="tok-number">64</span> - <span class="tok-builtin">@intCast</span>(<span class="tok-type">u7</span>, ml8));</span>
+<span class="line" id="L78">}</span>
+<span class="line" id="L79"></span>
+<span class="line" id="L80"><span class="tok-comment">/// Multiplies two 64-bit unsigned integers, and stores the result in two other 64-bit unsigned integers.</span></span>
+<span class="line" id="L81"><span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">mul128</span>(a: <span class="tok-type">u64</span>, b: <span class="tok-type">u64</span>, rl: *<span class="tok-type">u64</span>, rh: *<span class="tok-type">u64</span>) <span class="tok-type">void</span> {</span>
+<span class="line" id="L82">    <span class="tok-kw">const</span> r = std.math.mulWide(<span class="tok-type">u64</span>, a, b);</span>
+<span class="line" id="L83">    rl.* = <span class="tok-builtin">@truncate</span>(<span class="tok-type">u64</span>, r);</span>
+<span class="line" id="L84">    rh.* = <span class="tok-builtin">@truncate</span>(<span class="tok-type">u64</span>, r &gt;&gt; <span class="tok-number">64</span>);</span>
+<span class="line" id="L85">}</span>
+<span class="line" id="L86"></span>
 </code></pre></body>
 </html>

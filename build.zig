@@ -1,7 +1,7 @@
 const std = @import("std");
 const Builder = @import("std").build.Builder;
 
-pub fn build(b: *Builder) (std.process.ArgIterator.InitError || error{ Overflow, OutOfMemory })!void {
+pub fn build(b: *Builder) void {
     const lib = b.addStaticLibrary(.{
         .name = "komihash",
         .root_source_file = .{ .path = "src/komihash.zig" },
@@ -21,6 +21,10 @@ pub fn build(b: *Builder) (std.process.ArgIterator.InitError || error{ Overflow,
         .optimize = .ReleaseFast,
     });
     const run_benchmarks = b.addRunArtifact(benchmarks);
+
+    if (b.args) |args| {
+        run_benchmarks.addArgs(args);
+    }
 
     const benchmarks_step = b.step("bench", "Run benchmarks");
     benchmarks_step.dependOn(&run_benchmarks.step);
