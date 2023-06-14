@@ -39,10 +39,9 @@ pub inline fn next(self: *Komirand) u64 {
 
 /// Fills a byte buffer with pseudo-random values.
 pub inline fn fill(self: *Komirand, buf: []u8) void {
-    var i: usize = 0;
     const aligned_len = buf.len - (buf.len & 7);
+    var i: usize = 0;
 
-    // Fill complete 64-byte segments.
     while (i < aligned_len) : (i += 8) {
         var n = self.next();
         comptime var j: usize = 0;
@@ -52,7 +51,6 @@ pub inline fn fill(self: *Komirand, buf: []u8) void {
         }
     }
 
-    // Fill trailing, ignoring excess (cut the stream).
     if (i != buf.len) {
         var n = self.next();
         while (i < buf.len) : (i += 1) {

@@ -146,301 +146,333 @@
 <span class="line" id="L33">    <span class="tok-comment">/// Common 64-byte full-performance hashing loop.</span></span>
 <span class="line" id="L34">    <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">loop</span>(msg: []<span class="tok-kw">const</span> <span class="tok-type">u8</span>, idx: *<span class="tok-type">usize</span>, len: *<span class="tok-type">usize</span>, seed1: *<span class="tok-type">u64</span>, seed2: *<span class="tok-type">u64</span>, seed3: *<span class="tok-type">u64</span>, seed4: *<span class="tok-type">u64</span>, seed5: *<span class="tok-type">u64</span>, seed6: *<span class="tok-type">u64</span>, seed7: *<span class="tok-type">u64</span>, seed8: *<span class="tok-type">u64</span>, r1h: *<span class="tok-type">u64</span>, r2h: *<span class="tok-type">u64</span>, r3h: *<span class="tok-type">u64</span>, r4h: *<span class="tok-type">u64</span>) <span class="tok-type">void</span> {</span>
 <span class="line" id="L35">        std.debug.assert(len.* &gt; <span class="tok-number">63</span>);</span>
-<span class="line" id="L36">        <span class="tok-kw">while</span> (<span class="tok-null">true</span>) {</span>
-<span class="line" id="L37">            <span class="tok-kw">const</span> i = idx.*;</span>
-<span class="line" id="L38">            <span class="tok-builtin">@prefetch</span>(msg, .{ .locality = <span class="tok-number">1</span> });</span>
-<span class="line" id="L39">            utils.mul128(seed1.* ^ utils.readInt64(msg[i .. i + <span class="tok-number">8</span>]), seed5.* ^ utils.readInt64(msg[i + <span class="tok-number">32</span> .. i + <span class="tok-number">40</span>]), seed1, r1h);</span>
-<span class="line" id="L40">            utils.mul128(seed2.* ^ utils.readInt64(msg[i + <span class="tok-number">8</span> .. i + <span class="tok-number">16</span>]), seed6.* ^ utils.readInt64(msg[i + <span class="tok-number">40</span> .. i + <span class="tok-number">48</span>]), seed2, r2h);</span>
-<span class="line" id="L41">            utils.mul128(seed3.* ^ utils.readInt64(msg[i + <span class="tok-number">16</span> .. i + <span class="tok-number">24</span>]), seed7.* ^ utils.readInt64(msg[i + <span class="tok-number">48</span> .. i + <span class="tok-number">56</span>]), seed3, r3h);</span>
-<span class="line" id="L42">            utils.mul128(seed4.* ^ utils.readInt64(msg[i + <span class="tok-number">24</span> .. i + <span class="tok-number">32</span>]), seed8.* ^ utils.readInt64(msg[i + <span class="tok-number">56</span> .. i + <span class="tok-number">64</span>]), seed4, r4h);</span>
-<span class="line" id="L43">            idx.* += <span class="tok-number">64</span>;</span>
-<span class="line" id="L44">            len.* -= <span class="tok-number">64</span>;</span>
-<span class="line" id="L45">            seed5.* +%= r1h.*;</span>
-<span class="line" id="L46">            seed6.* +%= r2h.*;</span>
-<span class="line" id="L47">            seed7.* +%= r3h.*;</span>
-<span class="line" id="L48">            seed8.* +%= r4h.*;</span>
-<span class="line" id="L49">            seed2.* ^= seed5.*;</span>
-<span class="line" id="L50">            seed3.* ^= seed6.*;</span>
-<span class="line" id="L51">            seed4.* ^= seed7.*;</span>
-<span class="line" id="L52">            seed1.* ^= seed8.*;</span>
-<span class="line" id="L53">            <span class="tok-kw">if</span> (!utils.isLikely(len.* &gt; <span class="tok-number">63</span>))</span>
-<span class="line" id="L54">                <span class="tok-kw">break</span>;</span>
-<span class="line" id="L55">        }</span>
-<span class="line" id="L56">    }</span>
-<span class="line" id="L57"></span>
-<span class="line" id="L58">    <span class="tok-comment">/// The hashing epilogue function.</span></span>
-<span class="line" id="L59">    <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">epilogue</span>(msg: []<span class="tok-kw">const</span> <span class="tok-type">u8</span>, idx: <span class="tok-type">usize</span>, len: <span class="tok-type">usize</span>, seed1: <span class="tok-type">u64</span>, seed5: <span class="tok-type">u64</span>, last_bytes_opt: ?[<span class="tok-number">8</span>]<span class="tok-type">u8</span>) <span class="tok-type">u64</span> {</span>
-<span class="line" id="L60">        <span class="tok-kw">var</span> r1h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L61">        <span class="tok-kw">var</span> r2h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L62">        <span class="tok-kw">var</span> s1 = seed1;</span>
-<span class="line" id="L63">        <span class="tok-kw">var</span> s5 = seed5;</span>
-<span class="line" id="L64">        <span class="tok-kw">var</span> i = idx;</span>
-<span class="line" id="L65">        <span class="tok-kw">var</span> l = len;</span>
-<span class="line" id="L66">        <span class="tok-builtin">@prefetch</span>(msg, .{ .locality = <span class="tok-number">1</span> });</span>
-<span class="line" id="L67">        <span class="tok-kw">if</span> (utils.isLikely(l &gt; <span class="tok-number">31</span>)) {</span>
-<span class="line" id="L68">            roundInput(msg, i, &amp;s1, &amp;s5, &amp;r1h);</span>
-<span class="line" id="L69">            roundInput(msg, i + <span class="tok-number">16</span>, &amp;s1, &amp;s5, &amp;r1h);</span>
-<span class="line" id="L70">            i += <span class="tok-number">32</span>;</span>
-<span class="line" id="L71">            l -= <span class="tok-number">32</span>;</span>
-<span class="line" id="L72">        }</span>
-<span class="line" id="L73">        <span class="tok-kw">if</span> (l &gt; <span class="tok-number">15</span>) {</span>
-<span class="line" id="L74">            roundInput(msg, i, &amp;s1, &amp;s5, &amp;r1h);</span>
-<span class="line" id="L75">            i += <span class="tok-number">16</span>;</span>
-<span class="line" id="L76">            l -= <span class="tok-number">16</span>;</span>
-<span class="line" id="L77">        }</span>
-<span class="line" id="L78">        <span class="tok-kw">if</span> (l &gt; <span class="tok-number">7</span>) {</span>
-<span class="line" id="L79">            r2h = s5 ^ utils.padLong4(msg, i + <span class="tok-number">8</span>, l - <span class="tok-number">8</span>, last_bytes_opt);</span>
-<span class="line" id="L80">            r1h = s1 ^ utils.readInt64(msg[i .. i + <span class="tok-number">8</span>]);</span>
-<span class="line" id="L81">        } <span class="tok-kw">else</span> {</span>
-<span class="line" id="L82">            r1h = s1 ^ utils.padLong4(msg, i, l, last_bytes_opt);</span>
-<span class="line" id="L83">            r2h = s5;</span>
-<span class="line" id="L84">        }</span>
-<span class="line" id="L85">        final(&amp;s1, &amp;s5, &amp;r1h, &amp;r2h);</span>
-<span class="line" id="L86">        <span class="tok-kw">return</span> s1;</span>
-<span class="line" id="L87">    }</span>
+<span class="line" id="L36"></span>
+<span class="line" id="L37">        <span class="tok-kw">while</span> (<span class="tok-null">true</span>) {</span>
+<span class="line" id="L38">            <span class="tok-kw">const</span> i = idx.*;</span>
+<span class="line" id="L39">            <span class="tok-builtin">@prefetch</span>(msg, .{ .locality = <span class="tok-number">1</span> });</span>
+<span class="line" id="L40">            utils.mul128(seed1.* ^ utils.readInt64(msg[i .. i + <span class="tok-number">8</span>]), seed5.* ^ utils.readInt64(msg[i + <span class="tok-number">32</span> .. i + <span class="tok-number">40</span>]), seed1, r1h);</span>
+<span class="line" id="L41">            utils.mul128(seed2.* ^ utils.readInt64(msg[i + <span class="tok-number">8</span> .. i + <span class="tok-number">16</span>]), seed6.* ^ utils.readInt64(msg[i + <span class="tok-number">40</span> .. i + <span class="tok-number">48</span>]), seed2, r2h);</span>
+<span class="line" id="L42">            utils.mul128(seed3.* ^ utils.readInt64(msg[i + <span class="tok-number">16</span> .. i + <span class="tok-number">24</span>]), seed7.* ^ utils.readInt64(msg[i + <span class="tok-number">48</span> .. i + <span class="tok-number">56</span>]), seed3, r3h);</span>
+<span class="line" id="L43">            utils.mul128(seed4.* ^ utils.readInt64(msg[i + <span class="tok-number">24</span> .. i + <span class="tok-number">32</span>]), seed8.* ^ utils.readInt64(msg[i + <span class="tok-number">56</span> .. i + <span class="tok-number">64</span>]), seed4, r4h);</span>
+<span class="line" id="L44">            idx.* += <span class="tok-number">64</span>;</span>
+<span class="line" id="L45">            len.* -= <span class="tok-number">64</span>;</span>
+<span class="line" id="L46">            seed5.* +%= r1h.*;</span>
+<span class="line" id="L47">            seed6.* +%= r2h.*;</span>
+<span class="line" id="L48">            seed7.* +%= r3h.*;</span>
+<span class="line" id="L49">            seed8.* +%= r4h.*;</span>
+<span class="line" id="L50">            seed2.* ^= seed5.*;</span>
+<span class="line" id="L51">            seed3.* ^= seed6.*;</span>
+<span class="line" id="L52">            seed4.* ^= seed7.*;</span>
+<span class="line" id="L53">            seed1.* ^= seed8.*;</span>
+<span class="line" id="L54">            <span class="tok-kw">if</span> (!utils.isLikely(len.* &gt; <span class="tok-number">63</span>))</span>
+<span class="line" id="L55">                <span class="tok-kw">break</span>;</span>
+<span class="line" id="L56">        }</span>
+<span class="line" id="L57">    }</span>
+<span class="line" id="L58"></span>
+<span class="line" id="L59">    <span class="tok-comment">/// The hashing epilogue function.</span></span>
+<span class="line" id="L60">    <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">epilogue</span>(msg: []<span class="tok-kw">const</span> <span class="tok-type">u8</span>, idx: <span class="tok-type">usize</span>, len: <span class="tok-type">usize</span>, seed1: <span class="tok-type">u64</span>, seed5: <span class="tok-type">u64</span>, last_bytes_opt: ?[<span class="tok-number">8</span>]<span class="tok-type">u8</span>) <span class="tok-type">u64</span> {</span>
+<span class="line" id="L61">        <span class="tok-kw">var</span> r1h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L62">        <span class="tok-kw">var</span> r2h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L63">        <span class="tok-kw">var</span> s1 = seed1;</span>
+<span class="line" id="L64">        <span class="tok-kw">var</span> s5 = seed5;</span>
+<span class="line" id="L65">        <span class="tok-kw">var</span> i = idx;</span>
+<span class="line" id="L66">        <span class="tok-kw">var</span> l = len;</span>
+<span class="line" id="L67"></span>
+<span class="line" id="L68">        <span class="tok-kw">if</span> (utils.isLikely(l &gt; <span class="tok-number">31</span>)) {</span>
+<span class="line" id="L69">            roundInput(msg, i, &amp;s1, &amp;s5, &amp;r1h);</span>
+<span class="line" id="L70">            roundInput(msg, i + <span class="tok-number">16</span>, &amp;s1, &amp;s5, &amp;r1h);</span>
+<span class="line" id="L71">            i += <span class="tok-number">32</span>;</span>
+<span class="line" id="L72">            l -= <span class="tok-number">32</span>;</span>
+<span class="line" id="L73">        }</span>
+<span class="line" id="L74"></span>
+<span class="line" id="L75">        <span class="tok-kw">if</span> (l &gt; <span class="tok-number">15</span>) {</span>
+<span class="line" id="L76">            roundInput(msg, i, &amp;s1, &amp;s5, &amp;r1h);</span>
+<span class="line" id="L77">            i += <span class="tok-number">16</span>;</span>
+<span class="line" id="L78">            l -= <span class="tok-number">16</span>;</span>
+<span class="line" id="L79">        }</span>
+<span class="line" id="L80"></span>
+<span class="line" id="L81">        <span class="tok-kw">if</span> (l &gt; <span class="tok-number">7</span>) {</span>
+<span class="line" id="L82">            r2h = s5 ^ utils.padLong4(msg, i + <span class="tok-number">8</span>, l - <span class="tok-number">8</span>, last_bytes_opt);</span>
+<span class="line" id="L83">            r1h = s1 ^ utils.readInt64(msg[i .. i + <span class="tok-number">8</span>]);</span>
+<span class="line" id="L84">        } <span class="tok-kw">else</span> {</span>
+<span class="line" id="L85">            r1h = s1 ^ utils.padLong4(msg, i, l, last_bytes_opt);</span>
+<span class="line" id="L86">            r2h = s5;</span>
+<span class="line" id="L87">        }</span>
 <span class="line" id="L88"></span>
-<span class="line" id="L89">    <span class="tok-comment">/// Produces a 64-bit hash value of the specified message.</span></span>
-<span class="line" id="L90">    <span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">hash</span>(seed: <span class="tok-type">u64</span>, msg: []<span class="tok-kw">const</span> <span class="tok-type">u8</span>) <span class="tok-type">u64</span> {</span>
-<span class="line" id="L91">        <span class="tok-kw">var</span> seed1: <span class="tok-type">u64</span> = <span class="tok-number">0x243F6A8885A308D3</span> ^ (seed &amp; <span class="tok-number">0x5555555555555555</span>);</span>
-<span class="line" id="L92">        <span class="tok-kw">var</span> seed5: <span class="tok-type">u64</span> = <span class="tok-number">0x452821E638D01377</span> ^ (seed &amp; <span class="tok-number">0xAAAAAAAAAAAAAAAA</span>);</span>
-<span class="line" id="L93">        <span class="tok-kw">var</span> r1h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L94">        <span class="tok-kw">var</span> r2h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L95">        <span class="tok-kw">var</span> idx: <span class="tok-type">usize</span> = <span class="tok-number">0</span>;</span>
-<span class="line" id="L96">        <span class="tok-kw">var</span> len = msg.len;</span>
-<span class="line" id="L97">        roundNoInput(&amp;seed1, &amp;seed5, &amp;r2h);</span>
-<span class="line" id="L98">        <span class="tok-kw">if</span> (utils.isLikely(len &lt; <span class="tok-number">16</span>)) {</span>
-<span class="line" id="L99">            <span class="tok-builtin">@prefetch</span>(msg, .{ .locality = <span class="tok-number">1</span> });</span>
-<span class="line" id="L100">            r1h = seed1;</span>
-<span class="line" id="L101">            r2h = seed5;</span>
-<span class="line" id="L102">            <span class="tok-kw">if</span> (len &gt; <span class="tok-number">7</span>) {</span>
-<span class="line" id="L103">                r2h ^= utils.padLong3(msg, idx + <span class="tok-number">8</span>, len - <span class="tok-number">8</span>);</span>
-<span class="line" id="L104">                r1h ^= utils.readInt64(msg[idx .. idx + <span class="tok-number">8</span>]);</span>
-<span class="line" id="L105">            } <span class="tok-kw">else</span> <span class="tok-kw">if</span> (utils.isLikely(len != <span class="tok-number">0</span>)) {</span>
-<span class="line" id="L106">                r1h ^= utils.padShort(msg, idx, len);</span>
-<span class="line" id="L107">            }</span>
-<span class="line" id="L108">            final(&amp;seed1, &amp;seed5, &amp;r1h, &amp;r2h);</span>
-<span class="line" id="L109">            <span class="tok-kw">return</span> seed1;</span>
-<span class="line" id="L110">        }</span>
-<span class="line" id="L111">        <span class="tok-kw">if</span> (utils.isLikely(len &lt; <span class="tok-number">32</span>)) {</span>
-<span class="line" id="L112">            <span class="tok-builtin">@prefetch</span>(msg, .{ .locality = <span class="tok-number">1</span> });</span>
-<span class="line" id="L113">            roundInput(msg, idx, &amp;seed1, &amp;seed5, &amp;r1h);</span>
-<span class="line" id="L114">            <span class="tok-kw">if</span> (len &gt; <span class="tok-number">23</span>) {</span>
-<span class="line" id="L115">                r2h = seed5 ^ utils.padLong4(msg, idx + <span class="tok-number">24</span>, len - <span class="tok-number">24</span>, <span class="tok-null">null</span>);</span>
-<span class="line" id="L116">                r1h = seed1 ^ utils.readInt64(msg[idx + <span class="tok-number">16</span> .. idx + <span class="tok-number">24</span>]);</span>
-<span class="line" id="L117">            } <span class="tok-kw">else</span> {</span>
-<span class="line" id="L118">                r1h = seed1 ^ utils.padLong4(msg, idx + <span class="tok-number">16</span>, len - <span class="tok-number">16</span>, <span class="tok-null">null</span>);</span>
-<span class="line" id="L119">                r2h = seed5;</span>
-<span class="line" id="L120">            }</span>
-<span class="line" id="L121">            final(&amp;seed1, &amp;seed5, &amp;r1h, &amp;r2h);</span>
-<span class="line" id="L122">            <span class="tok-kw">return</span> seed1;</span>
-<span class="line" id="L123">        }</span>
-<span class="line" id="L124">        <span class="tok-kw">if</span> (len &gt; <span class="tok-number">63</span>) {</span>
-<span class="line" id="L125">            <span class="tok-kw">var</span> seed2 = <span class="tok-number">0x13198A2E03707344</span> ^ seed1;</span>
-<span class="line" id="L126">            <span class="tok-kw">var</span> seed3 = <span class="tok-number">0xA4093822299F31D0</span> ^ seed1;</span>
-<span class="line" id="L127">            <span class="tok-kw">var</span> seed4 = <span class="tok-number">0x082EFA98EC4E6C89</span> ^ seed1;</span>
-<span class="line" id="L128">            <span class="tok-kw">var</span> seed6 = <span class="tok-number">0xBE5466CF34E90C6C</span> ^ seed5;</span>
-<span class="line" id="L129">            <span class="tok-kw">var</span> seed7 = <span class="tok-number">0xC0AC29B7C97C50DD</span> ^ seed5;</span>
-<span class="line" id="L130">            <span class="tok-kw">var</span> seed8 = <span class="tok-number">0x3F84D5B5B5470917</span> ^ seed5;</span>
-<span class="line" id="L131">            <span class="tok-kw">var</span> r3h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L132">            <span class="tok-kw">var</span> r4h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L133">            loop(msg, &amp;idx, &amp;len, &amp;seed1, &amp;seed2, &amp;seed3, &amp;seed4, &amp;seed5, &amp;seed6, &amp;seed7, &amp;seed8, &amp;r1h, &amp;r2h, &amp;r3h, &amp;r4h);</span>
-<span class="line" id="L134">            seed5 ^= seed6 ^ seed7 ^ seed8;</span>
-<span class="line" id="L135">            seed1 ^= seed2 ^ seed3 ^ seed4;</span>
-<span class="line" id="L136">        }</span>
-<span class="line" id="L137">        <span class="tok-kw">return</span> epilogue(msg, idx, len, seed1, seed5, <span class="tok-null">null</span>);</span>
-<span class="line" id="L138">    }</span>
-<span class="line" id="L139">};</span>
-<span class="line" id="L140"></span>
-<span class="line" id="L141"><span class="tok-comment">/// Komihash structure holding streamed hashing state.</span></span>
-<span class="line" id="L142"><span class="tok-kw">pub</span> <span class="tok-kw">const</span> Komihash = <span class="tok-kw">struct</span> {</span>
-<span class="line" id="L143">    <span class="tok-comment">/// Streamed hashing buffer capacity, must be a multiple of 64, and not less than 128.</span></span>
-<span class="line" id="L144">    <span class="tok-kw">const</span> BUF_CAPACITY = <span class="tok-number">768</span>;</span>
+<span class="line" id="L89">        final(&amp;s1, &amp;s5, &amp;r1h, &amp;r2h);</span>
+<span class="line" id="L90">        <span class="tok-kw">return</span> s1;</span>
+<span class="line" id="L91">    }</span>
+<span class="line" id="L92"></span>
+<span class="line" id="L93">    <span class="tok-comment">/// Produces a 64-bit hash value of the specified message.</span></span>
+<span class="line" id="L94">    <span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">hash</span>(seed: <span class="tok-type">u64</span>, msg: []<span class="tok-kw">const</span> <span class="tok-type">u8</span>) <span class="tok-type">u64</span> {</span>
+<span class="line" id="L95">        <span class="tok-kw">var</span> seed1: <span class="tok-type">u64</span> = <span class="tok-number">0x243F6A8885A308D3</span> ^ (seed &amp; <span class="tok-number">0x5555555555555555</span>);</span>
+<span class="line" id="L96">        <span class="tok-kw">var</span> seed5: <span class="tok-type">u64</span> = <span class="tok-number">0x452821E638D01377</span> ^ (seed &amp; <span class="tok-number">0xAAAAAAAAAAAAAAAA</span>);</span>
+<span class="line" id="L97">        <span class="tok-kw">var</span> r1h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L98">        <span class="tok-kw">var</span> r2h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L99">        <span class="tok-kw">var</span> idx: <span class="tok-type">usize</span> = <span class="tok-number">0</span>;</span>
+<span class="line" id="L100">        <span class="tok-kw">var</span> len = msg.len;</span>
+<span class="line" id="L101"></span>
+<span class="line" id="L102">        <span class="tok-builtin">@prefetch</span>(msg, .{ .locality = <span class="tok-number">1</span> });</span>
+<span class="line" id="L103"></span>
+<span class="line" id="L104">        roundNoInput(&amp;seed1, &amp;seed5, &amp;r2h);</span>
+<span class="line" id="L105"></span>
+<span class="line" id="L106">        <span class="tok-kw">if</span> (utils.isLikely(len &lt; <span class="tok-number">16</span>)) {</span>
+<span class="line" id="L107">            r1h = seed1;</span>
+<span class="line" id="L108">            r2h = seed5;</span>
+<span class="line" id="L109">            <span class="tok-kw">if</span> (len &gt; <span class="tok-number">7</span>) {</span>
+<span class="line" id="L110">                r2h ^= utils.padLong3(msg, idx + <span class="tok-number">8</span>, len - <span class="tok-number">8</span>);</span>
+<span class="line" id="L111">                r1h ^= utils.readInt64(msg[idx .. idx + <span class="tok-number">8</span>]);</span>
+<span class="line" id="L112">            } <span class="tok-kw">else</span> <span class="tok-kw">if</span> (utils.isLikely(len != <span class="tok-number">0</span>)) {</span>
+<span class="line" id="L113">                r1h ^= utils.padShort(msg, idx, len);</span>
+<span class="line" id="L114">            }</span>
+<span class="line" id="L115"></span>
+<span class="line" id="L116">            final(&amp;seed1, &amp;seed5, &amp;r1h, &amp;r2h);</span>
+<span class="line" id="L117">            <span class="tok-kw">return</span> seed1;</span>
+<span class="line" id="L118">        }</span>
+<span class="line" id="L119"></span>
+<span class="line" id="L120">        <span class="tok-kw">if</span> (utils.isLikely(len &lt; <span class="tok-number">32</span>)) {</span>
+<span class="line" id="L121">            roundInput(msg, idx, &amp;seed1, &amp;seed5, &amp;r1h);</span>
+<span class="line" id="L122">            <span class="tok-kw">if</span> (len &gt; <span class="tok-number">23</span>) {</span>
+<span class="line" id="L123">                r2h = seed5 ^ utils.padLong4(msg, idx + <span class="tok-number">24</span>, len - <span class="tok-number">24</span>, <span class="tok-null">null</span>);</span>
+<span class="line" id="L124">                r1h = seed1 ^ utils.readInt64(msg[idx + <span class="tok-number">16</span> .. idx + <span class="tok-number">24</span>]);</span>
+<span class="line" id="L125">            } <span class="tok-kw">else</span> {</span>
+<span class="line" id="L126">                r1h = seed1 ^ utils.padLong4(msg, idx + <span class="tok-number">16</span>, len - <span class="tok-number">16</span>, <span class="tok-null">null</span>);</span>
+<span class="line" id="L127">                r2h = seed5;</span>
+<span class="line" id="L128">            }</span>
+<span class="line" id="L129"></span>
+<span class="line" id="L130">            final(&amp;seed1, &amp;seed5, &amp;r1h, &amp;r2h);</span>
+<span class="line" id="L131">            <span class="tok-kw">return</span> seed1;</span>
+<span class="line" id="L132">        }</span>
+<span class="line" id="L133"></span>
+<span class="line" id="L134">        <span class="tok-kw">if</span> (len &gt; <span class="tok-number">63</span>) {</span>
+<span class="line" id="L135">            <span class="tok-kw">var</span> seed2 = <span class="tok-number">0x13198A2E03707344</span> ^ seed1;</span>
+<span class="line" id="L136">            <span class="tok-kw">var</span> seed3 = <span class="tok-number">0xA4093822299F31D0</span> ^ seed1;</span>
+<span class="line" id="L137">            <span class="tok-kw">var</span> seed4 = <span class="tok-number">0x082EFA98EC4E6C89</span> ^ seed1;</span>
+<span class="line" id="L138">            <span class="tok-kw">var</span> seed6 = <span class="tok-number">0xBE5466CF34E90C6C</span> ^ seed5;</span>
+<span class="line" id="L139">            <span class="tok-kw">var</span> seed7 = <span class="tok-number">0xC0AC29B7C97C50DD</span> ^ seed5;</span>
+<span class="line" id="L140">            <span class="tok-kw">var</span> seed8 = <span class="tok-number">0x3F84D5B5B5470917</span> ^ seed5;</span>
+<span class="line" id="L141">            <span class="tok-kw">var</span> r3h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L142">            <span class="tok-kw">var</span> r4h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L143"></span>
+<span class="line" id="L144">            loop(msg, &amp;idx, &amp;len, &amp;seed1, &amp;seed2, &amp;seed3, &amp;seed4, &amp;seed5, &amp;seed6, &amp;seed7, &amp;seed8, &amp;r1h, &amp;r2h, &amp;r3h, &amp;r4h);</span>
 <span class="line" id="L145"></span>
-<span class="line" id="L146">    <span class="tok-comment">/// Buffer for storing the hashing state.</span></span>
-<span class="line" id="L147">    buf: [BUF_CAPACITY]<span class="tok-type">u8</span> = <span class="tok-null">undefined</span>,</span>
-<span class="line" id="L148">    <span class="tok-comment">/// Hashing stream's last bytes.</span></span>
-<span class="line" id="L149">    last_bytes_opt: ?[<span class="tok-number">8</span>]<span class="tok-type">u8</span> = <span class="tok-null">null</span>,</span>
-<span class="line" id="L150">    <span class="tok-comment">/// Hashing state's variables.</span></span>
-<span class="line" id="L151">    seeds: [<span class="tok-number">8</span>]<span class="tok-type">u64</span> = <span class="tok-null">undefined</span>,</span>
-<span class="line" id="L152">    <span class="tok-comment">/// Hashing start indicator.</span></span>
-<span class="line" id="L153">    is_hashing: <span class="tok-type">bool</span> = <span class="tok-null">false</span>,</span>
-<span class="line" id="L154">    <span class="tok-comment">/// Buffer's filled length.</span></span>
-<span class="line" id="L155">    buf_len: <span class="tok-type">usize</span> = <span class="tok-number">0</span>,</span>
-<span class="line" id="L156"></span>
-<span class="line" id="L157">    <span class="tok-comment">/// Initializes the streamed hashing session with a seed.</span></span>
-<span class="line" id="L158">    <span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">init</span>(seed: <span class="tok-type">u64</span>) Komihash {</span>
-<span class="line" id="L159">        <span class="tok-kw">return</span> .{ .seeds = [<span class="tok-number">1</span>]<span class="tok-type">u64</span>{seed} ++ ([<span class="tok-number">1</span>]<span class="tok-type">u64</span>{<span class="tok-number">0</span>} ** <span class="tok-number">7</span>) };</span>
-<span class="line" id="L160">    }</span>
-<span class="line" id="L161"></span>
-<span class="line" id="L162">    <span class="tok-comment">/// Updates the streamed hashing state with new input data.</span></span>
-<span class="line" id="L163">    <span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">update</span>(self: *Komihash, msg: []<span class="tok-kw">const</span> <span class="tok-type">u8</span>) <span class="tok-type">void</span> {</span>
-<span class="line" id="L164">        <span class="tok-kw">var</span> buf_len = self.buf_len;</span>
-<span class="line" id="L165">        <span class="tok-kw">var</span> sw_idx: <span class="tok-type">usize</span> = <span class="tok-number">0</span>;</span>
-<span class="line" id="L166">        <span class="tok-kw">var</span> sw_len: <span class="tok-type">usize</span> = <span class="tok-number">0</span>;</span>
-<span class="line" id="L167">        <span class="tok-kw">var</span> idx: <span class="tok-type">usize</span> = <span class="tok-number">0</span>;</span>
-<span class="line" id="L168">        <span class="tok-kw">var</span> len = msg.len;</span>
-<span class="line" id="L169">        <span class="tok-kw">var</span> data = msg;</span>
-<span class="line" id="L170">        <span class="tok-kw">if</span> (buf_len + len &gt;= BUF_CAPACITY <span class="tok-kw">and</span> buf_len != <span class="tok-number">0</span>) {</span>
-<span class="line" id="L171">            <span class="tok-kw">const</span> copy_len = BUF_CAPACITY - buf_len;</span>
-<span class="line" id="L172">            std.mem.copy(<span class="tok-type">u8</span>, self.buf[buf_len..], msg[<span class="tok-number">0</span>..copy_len]);</span>
-<span class="line" id="L173">            sw_idx = idx + copy_len;</span>
-<span class="line" id="L174">            sw_len = len - copy_len;</span>
-<span class="line" id="L175">            data = self.buf[<span class="tok-number">0</span>..];</span>
-<span class="line" id="L176">            len = BUF_CAPACITY;</span>
-<span class="line" id="L177">            buf_len = <span class="tok-number">0</span>;</span>
-<span class="line" id="L178">            idx = <span class="tok-number">0</span>;</span>
-<span class="line" id="L179">        } <span class="tok-kw">else</span> <span class="tok-kw">if</span> (len &lt; <span class="tok-number">33</span>) {</span>
-<span class="line" id="L180">            <span class="tok-kw">var</span> op = self.buf[buf_len..];</span>
-<span class="line" id="L181">            <span class="tok-kw">if</span> (len == <span class="tok-number">4</span>) {</span>
-<span class="line" id="L182">                std.mem.copy(<span class="tok-type">u8</span>, op, msg[<span class="tok-number">0</span>..<span class="tok-number">4</span>]);</span>
-<span class="line" id="L183">                self.buf_len = buf_len + <span class="tok-number">4</span>;</span>
-<span class="line" id="L184">                <span class="tok-kw">return</span> {};</span>
-<span class="line" id="L185">            }</span>
-<span class="line" id="L186">            <span class="tok-kw">if</span> (len == <span class="tok-number">8</span>) {</span>
-<span class="line" id="L187">                std.mem.copy(<span class="tok-type">u8</span>, op, msg[<span class="tok-number">0</span>..<span class="tok-number">8</span>]);</span>
-<span class="line" id="L188">                self.buf_len = buf_len + <span class="tok-number">8</span>;</span>
-<span class="line" id="L189">                <span class="tok-kw">return</span> {};</span>
-<span class="line" id="L190">            }</span>
-<span class="line" id="L191">            <span class="tok-kw">if</span> (len &gt; <span class="tok-number">0</span>) {</span>
-<span class="line" id="L192">                self.buf_len = buf_len + len;</span>
-<span class="line" id="L193">                std.mem.copy(<span class="tok-type">u8</span>, op, msg[<span class="tok-number">0</span>..len]);</span>
-<span class="line" id="L194">            }</span>
-<span class="line" id="L195">            <span class="tok-kw">return</span> {};</span>
-<span class="line" id="L196">        }</span>
-<span class="line" id="L197">        <span class="tok-kw">if</span> (buf_len == <span class="tok-number">0</span>) {</span>
-<span class="line" id="L198">            <span class="tok-kw">while</span> (len &gt; <span class="tok-number">127</span>) {</span>
-<span class="line" id="L199">                <span class="tok-kw">var</span> seed1: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L200">                <span class="tok-kw">var</span> seed2: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L201">                <span class="tok-kw">var</span> seed3: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L202">                <span class="tok-kw">var</span> seed4: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L203">                <span class="tok-kw">var</span> seed5: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L204">                <span class="tok-kw">var</span> seed6: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L205">                <span class="tok-kw">var</span> seed7: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L206">                <span class="tok-kw">var</span> seed8: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L207">                <span class="tok-kw">var</span> r1h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L208">                <span class="tok-kw">var</span> r2h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L209">                <span class="tok-kw">var</span> r3h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L210">                <span class="tok-kw">var</span> r4h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L211">                <span class="tok-kw">if</span> (self.is_hashing) {</span>
-<span class="line" id="L212">                    seed1 = self.seeds[<span class="tok-number">0</span>];</span>
-<span class="line" id="L213">                    seed2 = self.seeds[<span class="tok-number">1</span>];</span>
-<span class="line" id="L214">                    seed3 = self.seeds[<span class="tok-number">2</span>];</span>
-<span class="line" id="L215">                    seed4 = self.seeds[<span class="tok-number">3</span>];</span>
-<span class="line" id="L216">                    seed5 = self.seeds[<span class="tok-number">4</span>];</span>
-<span class="line" id="L217">                    seed6 = self.seeds[<span class="tok-number">5</span>];</span>
-<span class="line" id="L218">                    seed7 = self.seeds[<span class="tok-number">6</span>];</span>
-<span class="line" id="L219">                    seed8 = self.seeds[<span class="tok-number">7</span>];</span>
-<span class="line" id="L220">                } <span class="tok-kw">else</span> {</span>
-<span class="line" id="L221">                    self.is_hashing = <span class="tok-null">true</span>;</span>
-<span class="line" id="L222">                    <span class="tok-kw">const</span> seed = self.seeds[<span class="tok-number">0</span>];</span>
-<span class="line" id="L223">                    seed1 = <span class="tok-number">0x243F6A8885A308D3</span> ^ (seed &amp; <span class="tok-number">0x5555555555555555</span>);</span>
-<span class="line" id="L224">                    seed5 = <span class="tok-number">0x452821E638D01377</span> ^ (seed &amp; <span class="tok-number">0xAAAAAAAAAAAAAAAA</span>);</span>
-<span class="line" id="L225">                    KomihashStateless.roundNoInput(&amp;seed1, &amp;seed5, &amp;r2h);</span>
-<span class="line" id="L226">                    seed2 = <span class="tok-number">0x13198A2E03707344</span> ^ seed1;</span>
-<span class="line" id="L227">                    seed3 = <span class="tok-number">0xA4093822299F31D0</span> ^ seed1;</span>
-<span class="line" id="L228">                    seed4 = <span class="tok-number">0x082EFA98EC4E6C89</span> ^ seed1;</span>
-<span class="line" id="L229">                    seed6 = <span class="tok-number">0xBE5466CF34E90C6C</span> ^ seed5;</span>
-<span class="line" id="L230">                    seed7 = <span class="tok-number">0xC0AC29B7C97C50DD</span> ^ seed5;</span>
-<span class="line" id="L231">                    seed8 = <span class="tok-number">0x3F84D5B5B5470917</span> ^ seed5;</span>
-<span class="line" id="L232">                }</span>
-<span class="line" id="L233">                KomihashStateless.loop(data, &amp;idx, &amp;len, &amp;seed1, &amp;seed2, &amp;seed3, &amp;seed4, &amp;seed5, &amp;seed6, &amp;seed7, &amp;seed8, &amp;r1h, &amp;r2h, &amp;r3h, &amp;r4h);</span>
-<span class="line" id="L234">                self.seeds[<span class="tok-number">0</span>] = seed1;</span>
-<span class="line" id="L235">                self.seeds[<span class="tok-number">1</span>] = seed2;</span>
-<span class="line" id="L236">                self.seeds[<span class="tok-number">2</span>] = seed3;</span>
-<span class="line" id="L237">                self.seeds[<span class="tok-number">3</span>] = seed4;</span>
-<span class="line" id="L238">                self.seeds[<span class="tok-number">4</span>] = seed5;</span>
-<span class="line" id="L239">                self.seeds[<span class="tok-number">5</span>] = seed6;</span>
-<span class="line" id="L240">                self.seeds[<span class="tok-number">6</span>] = seed7;</span>
-<span class="line" id="L241">                self.seeds[<span class="tok-number">7</span>] = seed8;</span>
-<span class="line" id="L242">                <span class="tok-kw">if</span> (sw_len == <span class="tok-number">0</span>) {</span>
-<span class="line" id="L243">                    <span class="tok-kw">if</span> (len == <span class="tok-number">0</span>) {</span>
-<span class="line" id="L244">                        self.buf_len = <span class="tok-number">0</span>;</span>
-<span class="line" id="L245">                        self.last_bytes_opt = ([<span class="tok-number">1</span>]<span class="tok-type">u8</span>{<span class="tok-number">0</span>} ** <span class="tok-number">7</span>) ++ [<span class="tok-number">1</span>]<span class="tok-type">u8</span>{data[idx - <span class="tok-number">1</span>]};</span>
-<span class="line" id="L246">                        <span class="tok-kw">return</span> {};</span>
-<span class="line" id="L247">                    }</span>
-<span class="line" id="L248">                    <span class="tok-kw">break</span>;</span>
-<span class="line" id="L249">                }</span>
-<span class="line" id="L250">                idx = sw_idx;</span>
-<span class="line" id="L251">                len = sw_len;</span>
-<span class="line" id="L252">                data = msg;</span>
-<span class="line" id="L253">                sw_len = <span class="tok-number">0</span>;</span>
-<span class="line" id="L254">            }</span>
-<span class="line" id="L255">        }</span>
-<span class="line" id="L256">        std.mem.copy(<span class="tok-type">u8</span>, self.buf[buf_len..], data[idx .. idx + len]);</span>
-<span class="line" id="L257">        self.buf_len = buf_len + len;</span>
-<span class="line" id="L258">    }</span>
-<span class="line" id="L259"></span>
-<span class="line" id="L260">    <span class="tok-comment">/// Finalizes the streamed hashing session, and returns the hash of previously hashed data.</span></span>
-<span class="line" id="L261">    <span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">final</span>(self: *Komihash) <span class="tok-type">u64</span> {</span>
-<span class="line" id="L262">        <span class="tok-kw">var</span> idx: <span class="tok-type">usize</span> = <span class="tok-number">0</span>;</span>
-<span class="line" id="L263">        <span class="tok-kw">var</span> len = self.buf_len;</span>
-<span class="line" id="L264">        <span class="tok-kw">const</span> msg = self.buf[<span class="tok-number">0</span>..len];</span>
-<span class="line" id="L265">        <span class="tok-kw">if</span> (self.is_hashing == <span class="tok-null">false</span>)</span>
-<span class="line" id="L266">            <span class="tok-kw">return</span> KomihashStateless.hash(self.seeds[<span class="tok-number">0</span>], msg);</span>
-<span class="line" id="L267">        <span class="tok-kw">if</span> (self.last_bytes_opt == <span class="tok-null">null</span> <span class="tok-kw">and</span> len &lt; <span class="tok-number">9</span>) {</span>
-<span class="line" id="L268">            <span class="tok-kw">var</span> last_bytes = [<span class="tok-number">1</span>]<span class="tok-type">u8</span>{<span class="tok-number">0</span>} ** <span class="tok-number">8</span>;</span>
-<span class="line" id="L269">            <span class="tok-kw">var</span> i = <span class="tok-number">8</span> - len;</span>
-<span class="line" id="L270">            <span class="tok-kw">for</span> (msg) |byte| {</span>
-<span class="line" id="L271">                last_bytes[i] = byte;</span>
-<span class="line" id="L272">                i += <span class="tok-number">1</span>;</span>
-<span class="line" id="L273">            }</span>
-<span class="line" id="L274">            self.last_bytes_opt = last_bytes;</span>
-<span class="line" id="L275">        }</span>
-<span class="line" id="L276">        <span class="tok-kw">var</span> seed1 = self.seeds[<span class="tok-number">0</span>];</span>
-<span class="line" id="L277">        <span class="tok-kw">var</span> seed2 = self.seeds[<span class="tok-number">1</span>];</span>
-<span class="line" id="L278">        <span class="tok-kw">var</span> seed3 = self.seeds[<span class="tok-number">2</span>];</span>
-<span class="line" id="L279">        <span class="tok-kw">var</span> seed4 = self.seeds[<span class="tok-number">3</span>];</span>
-<span class="line" id="L280">        <span class="tok-kw">var</span> seed5 = self.seeds[<span class="tok-number">4</span>];</span>
-<span class="line" id="L281">        <span class="tok-kw">var</span> seed6 = self.seeds[<span class="tok-number">5</span>];</span>
-<span class="line" id="L282">        <span class="tok-kw">var</span> seed7 = self.seeds[<span class="tok-number">6</span>];</span>
-<span class="line" id="L283">        <span class="tok-kw">var</span> seed8 = self.seeds[<span class="tok-number">7</span>];</span>
-<span class="line" id="L284">        <span class="tok-kw">if</span> (len &gt; <span class="tok-number">63</span>) {</span>
-<span class="line" id="L285">            <span class="tok-kw">var</span> r1h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L286">            <span class="tok-kw">var</span> r2h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L287">            <span class="tok-kw">var</span> r3h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L288">            <span class="tok-kw">var</span> r4h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
-<span class="line" id="L289">            KomihashStateless.loop(msg, &amp;idx, &amp;len, &amp;seed1, &amp;seed2, &amp;seed3, &amp;seed4, &amp;seed5, &amp;seed6, &amp;seed7, &amp;seed8, &amp;r1h, &amp;r2h, &amp;r3h, &amp;r4h);</span>
-<span class="line" id="L290">        }</span>
-<span class="line" id="L291">        seed5 ^= seed6 ^ seed7 ^ seed8;</span>
-<span class="line" id="L292">        seed1 ^= seed2 ^ seed3 ^ seed4;</span>
-<span class="line" id="L293">        <span class="tok-kw">return</span> KomihashStateless.epilogue(msg, idx, len, seed1, seed5, self.last_bytes_opt);</span>
-<span class="line" id="L294">    }</span>
-<span class="line" id="L295"></span>
-<span class="line" id="L296">    <span class="tok-comment">/// Produces a 64-bit hash value of the specified message.</span></span>
-<span class="line" id="L297">    <span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">hash</span>(seed: <span class="tok-type">u64</span>, msg: []<span class="tok-kw">const</span> <span class="tok-type">u8</span>) <span class="tok-type">u64</span> {</span>
-<span class="line" id="L298">        <span class="tok-kw">return</span> KomihashStateless.hash(seed, msg);</span>
-<span class="line" id="L299">    }</span>
-<span class="line" id="L300">};</span>
-<span class="line" id="L301"></span>
-<span class="line" id="L302"><span class="tok-kw">test</span> <span class="tok-str">&quot;KomihashStateless&quot;</span> {</span>
-<span class="line" id="L303">    <span class="tok-kw">for</span> (tests.SEEDS, <span class="tok-number">0</span>..) |seed, i| {</span>
-<span class="line" id="L304">        <span class="tok-kw">for</span> (tests.HASHES[i], <span class="tok-number">0</span>..) |hash, j| {</span>
-<span class="line" id="L305">            <span class="tok-kw">try</span> std.testing.expectEqual(hash, KomihashStateless.hash(seed, tests.MSGS[j]));</span>
-<span class="line" id="L306">        }</span>
-<span class="line" id="L307">    }</span>
-<span class="line" id="L308">}</span>
-<span class="line" id="L309"></span>
-<span class="line" id="L310"><span class="tok-kw">test</span> <span class="tok-str">&quot;Komihash&quot;</span> {</span>
-<span class="line" id="L311">    <span class="tok-kw">for</span> (tests.SEEDS, <span class="tok-number">0</span>..) |seed, i| {</span>
-<span class="line" id="L312">        <span class="tok-kw">for</span> (tests.HASHES[i], <span class="tok-number">0</span>..) |hash, j| {</span>
-<span class="line" id="L313">            <span class="tok-kw">var</span> stream = Komihash.init(seed);</span>
-<span class="line" id="L314">            stream.update(tests.MSGS[j]);</span>
-<span class="line" id="L315">            <span class="tok-kw">try</span> std.testing.expectEqual(hash, stream.final());</span>
-<span class="line" id="L316"></span>
-<span class="line" id="L317">            <span class="tok-kw">var</span> len: <span class="tok-type">u8</span> = <span class="tok-number">1</span>;</span>
-<span class="line" id="L318">            <span class="tok-kw">while</span> (len &lt; <span class="tok-number">128</span>) : (len += <span class="tok-number">1</span>) {</span>
-<span class="line" id="L319">                stream = Komihash.init(seed);</span>
-<span class="line" id="L320">                <span class="tok-kw">var</span> msg = tests.MSGS[j];</span>
-<span class="line" id="L321">                <span class="tok-kw">while</span> (msg.len &gt; <span class="tok-number">0</span>) {</span>
-<span class="line" id="L322">                    <span class="tok-kw">const</span> slice = msg[<span class="tok-number">0</span>..std.math.min(msg.len, len)];</span>
-<span class="line" id="L323">                    msg = msg[slice.len..];</span>
-<span class="line" id="L324">                    stream.update(slice);</span>
-<span class="line" id="L325">                }</span>
-<span class="line" id="L326">                <span class="tok-kw">try</span> std.testing.expectEqual(hash, stream.final());</span>
-<span class="line" id="L327">            }</span>
-<span class="line" id="L328">        }</span>
-<span class="line" id="L329">    }</span>
-<span class="line" id="L330">}</span>
-<span class="line" id="L331"></span>
+<span class="line" id="L146">            seed5 ^= seed6 ^ seed7 ^ seed8;</span>
+<span class="line" id="L147">            seed1 ^= seed2 ^ seed3 ^ seed4;</span>
+<span class="line" id="L148">        }</span>
+<span class="line" id="L149"></span>
+<span class="line" id="L150">        <span class="tok-kw">return</span> epilogue(msg, idx, len, seed1, seed5, <span class="tok-null">null</span>);</span>
+<span class="line" id="L151">    }</span>
+<span class="line" id="L152">};</span>
+<span class="line" id="L153"></span>
+<span class="line" id="L154"><span class="tok-comment">/// Komihash structure holding streamed hashing state.</span></span>
+<span class="line" id="L155"><span class="tok-kw">pub</span> <span class="tok-kw">const</span> Komihash = <span class="tok-kw">struct</span> {</span>
+<span class="line" id="L156">    <span class="tok-comment">/// Streamed hashing buffer capacity, must be a multiple of 64, and not less than 128.</span></span>
+<span class="line" id="L157">    <span class="tok-kw">const</span> BUF_CAPACITY = <span class="tok-number">768</span>;</span>
+<span class="line" id="L158"></span>
+<span class="line" id="L159">    <span class="tok-comment">/// Buffer for storing the hashing state.</span></span>
+<span class="line" id="L160">    buf: [BUF_CAPACITY]<span class="tok-type">u8</span> = <span class="tok-null">undefined</span>,</span>
+<span class="line" id="L161">    <span class="tok-comment">/// Hashing stream's last bytes.</span></span>
+<span class="line" id="L162">    last_bytes_opt: ?[<span class="tok-number">8</span>]<span class="tok-type">u8</span> = <span class="tok-null">null</span>,</span>
+<span class="line" id="L163">    <span class="tok-comment">/// Hashing state's variables.</span></span>
+<span class="line" id="L164">    seeds: [<span class="tok-number">8</span>]<span class="tok-type">u64</span> = <span class="tok-null">undefined</span>,</span>
+<span class="line" id="L165">    <span class="tok-comment">/// Hashing start indicator.</span></span>
+<span class="line" id="L166">    is_hashing: <span class="tok-type">bool</span> = <span class="tok-null">false</span>,</span>
+<span class="line" id="L167">    <span class="tok-comment">/// Buffer's filled length.</span></span>
+<span class="line" id="L168">    buf_len: <span class="tok-type">usize</span> = <span class="tok-number">0</span>,</span>
+<span class="line" id="L169"></span>
+<span class="line" id="L170">    <span class="tok-comment">/// Initializes the streamed hashing session with a seed.</span></span>
+<span class="line" id="L171">    <span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">init</span>(seed: <span class="tok-type">u64</span>) Komihash {</span>
+<span class="line" id="L172">        <span class="tok-kw">return</span> .{ .seeds = [<span class="tok-number">1</span>]<span class="tok-type">u64</span>{seed} ++ ([<span class="tok-number">1</span>]<span class="tok-type">u64</span>{<span class="tok-number">0</span>} ** <span class="tok-number">7</span>) };</span>
+<span class="line" id="L173">    }</span>
+<span class="line" id="L174"></span>
+<span class="line" id="L175">    <span class="tok-comment">/// Updates the streamed hashing state with new input data.</span></span>
+<span class="line" id="L176">    <span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">update</span>(self: *Komihash, msg: []<span class="tok-kw">const</span> <span class="tok-type">u8</span>) <span class="tok-type">void</span> {</span>
+<span class="line" id="L177">        <span class="tok-kw">var</span> buf_len = self.buf_len;</span>
+<span class="line" id="L178">        <span class="tok-kw">var</span> sw_idx: <span class="tok-type">usize</span> = <span class="tok-number">0</span>;</span>
+<span class="line" id="L179">        <span class="tok-kw">var</span> sw_len: <span class="tok-type">usize</span> = <span class="tok-number">0</span>;</span>
+<span class="line" id="L180">        <span class="tok-kw">var</span> idx: <span class="tok-type">usize</span> = <span class="tok-number">0</span>;</span>
+<span class="line" id="L181">        <span class="tok-kw">var</span> len = msg.len;</span>
+<span class="line" id="L182">        <span class="tok-kw">var</span> data = msg;</span>
+<span class="line" id="L183"></span>
+<span class="line" id="L184">        <span class="tok-kw">if</span> (buf_len + len &gt;= BUF_CAPACITY <span class="tok-kw">and</span> buf_len != <span class="tok-number">0</span>) {</span>
+<span class="line" id="L185">            <span class="tok-kw">const</span> copy_len = BUF_CAPACITY - buf_len;</span>
+<span class="line" id="L186">            std.mem.copy(<span class="tok-type">u8</span>, self.buf[buf_len..], msg[<span class="tok-number">0</span>..copy_len]);</span>
+<span class="line" id="L187">            sw_idx = idx + copy_len;</span>
+<span class="line" id="L188">            sw_len = len - copy_len;</span>
+<span class="line" id="L189">            data = self.buf[<span class="tok-number">0</span>..];</span>
+<span class="line" id="L190">            len = BUF_CAPACITY;</span>
+<span class="line" id="L191">            buf_len = <span class="tok-number">0</span>;</span>
+<span class="line" id="L192">            idx = <span class="tok-number">0</span>;</span>
+<span class="line" id="L193">        } <span class="tok-kw">else</span> <span class="tok-kw">if</span> (len &lt; <span class="tok-number">33</span>) {</span>
+<span class="line" id="L194">            <span class="tok-kw">var</span> op = self.buf[buf_len..];</span>
+<span class="line" id="L195"></span>
+<span class="line" id="L196">            <span class="tok-kw">if</span> (len == <span class="tok-number">4</span>) {</span>
+<span class="line" id="L197">                std.mem.copy(<span class="tok-type">u8</span>, op, msg[<span class="tok-number">0</span>..<span class="tok-number">4</span>]);</span>
+<span class="line" id="L198">                self.buf_len = buf_len + <span class="tok-number">4</span>;</span>
+<span class="line" id="L199">                <span class="tok-kw">return</span> {};</span>
+<span class="line" id="L200">            }</span>
+<span class="line" id="L201"></span>
+<span class="line" id="L202">            <span class="tok-kw">if</span> (len == <span class="tok-number">8</span>) {</span>
+<span class="line" id="L203">                std.mem.copy(<span class="tok-type">u8</span>, op, msg[<span class="tok-number">0</span>..<span class="tok-number">8</span>]);</span>
+<span class="line" id="L204">                self.buf_len = buf_len + <span class="tok-number">8</span>;</span>
+<span class="line" id="L205">                <span class="tok-kw">return</span> {};</span>
+<span class="line" id="L206">            }</span>
+<span class="line" id="L207"></span>
+<span class="line" id="L208">            <span class="tok-kw">if</span> (len &gt; <span class="tok-number">0</span>) {</span>
+<span class="line" id="L209">                self.buf_len = buf_len + len;</span>
+<span class="line" id="L210">                std.mem.copy(<span class="tok-type">u8</span>, op, msg[<span class="tok-number">0</span>..len]);</span>
+<span class="line" id="L211">            }</span>
+<span class="line" id="L212"></span>
+<span class="line" id="L213">            <span class="tok-kw">return</span> {};</span>
+<span class="line" id="L214">        }</span>
+<span class="line" id="L215"></span>
+<span class="line" id="L216">        <span class="tok-kw">if</span> (buf_len == <span class="tok-number">0</span>) {</span>
+<span class="line" id="L217">            <span class="tok-kw">while</span> (len &gt; <span class="tok-number">127</span>) {</span>
+<span class="line" id="L218">                <span class="tok-kw">var</span> seed1: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L219">                <span class="tok-kw">var</span> seed2: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L220">                <span class="tok-kw">var</span> seed3: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L221">                <span class="tok-kw">var</span> seed4: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L222">                <span class="tok-kw">var</span> seed5: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L223">                <span class="tok-kw">var</span> seed6: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L224">                <span class="tok-kw">var</span> seed7: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L225">                <span class="tok-kw">var</span> seed8: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L226">                <span class="tok-kw">var</span> r1h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L227">                <span class="tok-kw">var</span> r2h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L228">                <span class="tok-kw">var</span> r3h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L229">                <span class="tok-kw">var</span> r4h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L230"></span>
+<span class="line" id="L231">                <span class="tok-kw">if</span> (self.is_hashing) {</span>
+<span class="line" id="L232">                    seed1 = self.seeds[<span class="tok-number">0</span>];</span>
+<span class="line" id="L233">                    seed2 = self.seeds[<span class="tok-number">1</span>];</span>
+<span class="line" id="L234">                    seed3 = self.seeds[<span class="tok-number">2</span>];</span>
+<span class="line" id="L235">                    seed4 = self.seeds[<span class="tok-number">3</span>];</span>
+<span class="line" id="L236">                    seed5 = self.seeds[<span class="tok-number">4</span>];</span>
+<span class="line" id="L237">                    seed6 = self.seeds[<span class="tok-number">5</span>];</span>
+<span class="line" id="L238">                    seed7 = self.seeds[<span class="tok-number">6</span>];</span>
+<span class="line" id="L239">                    seed8 = self.seeds[<span class="tok-number">7</span>];</span>
+<span class="line" id="L240">                } <span class="tok-kw">else</span> {</span>
+<span class="line" id="L241">                    self.is_hashing = <span class="tok-null">true</span>;</span>
+<span class="line" id="L242">                    <span class="tok-kw">const</span> seed = self.seeds[<span class="tok-number">0</span>];</span>
+<span class="line" id="L243">                    seed1 = <span class="tok-number">0x243F6A8885A308D3</span> ^ (seed &amp; <span class="tok-number">0x5555555555555555</span>);</span>
+<span class="line" id="L244">                    seed5 = <span class="tok-number">0x452821E638D01377</span> ^ (seed &amp; <span class="tok-number">0xAAAAAAAAAAAAAAAA</span>);</span>
+<span class="line" id="L245">                    KomihashStateless.roundNoInput(&amp;seed1, &amp;seed5, &amp;r2h);</span>
+<span class="line" id="L246">                    seed2 = <span class="tok-number">0x13198A2E03707344</span> ^ seed1;</span>
+<span class="line" id="L247">                    seed3 = <span class="tok-number">0xA4093822299F31D0</span> ^ seed1;</span>
+<span class="line" id="L248">                    seed4 = <span class="tok-number">0x082EFA98EC4E6C89</span> ^ seed1;</span>
+<span class="line" id="L249">                    seed6 = <span class="tok-number">0xBE5466CF34E90C6C</span> ^ seed5;</span>
+<span class="line" id="L250">                    seed7 = <span class="tok-number">0xC0AC29B7C97C50DD</span> ^ seed5;</span>
+<span class="line" id="L251">                    seed8 = <span class="tok-number">0x3F84D5B5B5470917</span> ^ seed5;</span>
+<span class="line" id="L252">                }</span>
+<span class="line" id="L253"></span>
+<span class="line" id="L254">                KomihashStateless.loop(data, &amp;idx, &amp;len, &amp;seed1, &amp;seed2, &amp;seed3, &amp;seed4, &amp;seed5, &amp;seed6, &amp;seed7, &amp;seed8, &amp;r1h, &amp;r2h, &amp;r3h, &amp;r4h);</span>
+<span class="line" id="L255"></span>
+<span class="line" id="L256">                self.seeds[<span class="tok-number">0</span>] = seed1;</span>
+<span class="line" id="L257">                self.seeds[<span class="tok-number">1</span>] = seed2;</span>
+<span class="line" id="L258">                self.seeds[<span class="tok-number">2</span>] = seed3;</span>
+<span class="line" id="L259">                self.seeds[<span class="tok-number">3</span>] = seed4;</span>
+<span class="line" id="L260">                self.seeds[<span class="tok-number">4</span>] = seed5;</span>
+<span class="line" id="L261">                self.seeds[<span class="tok-number">5</span>] = seed6;</span>
+<span class="line" id="L262">                self.seeds[<span class="tok-number">6</span>] = seed7;</span>
+<span class="line" id="L263">                self.seeds[<span class="tok-number">7</span>] = seed8;</span>
+<span class="line" id="L264"></span>
+<span class="line" id="L265">                <span class="tok-kw">if</span> (sw_len == <span class="tok-number">0</span>) {</span>
+<span class="line" id="L266">                    <span class="tok-kw">if</span> (len == <span class="tok-number">0</span>) {</span>
+<span class="line" id="L267">                        self.buf_len = <span class="tok-number">0</span>;</span>
+<span class="line" id="L268">                        self.last_bytes_opt = ([<span class="tok-number">1</span>]<span class="tok-type">u8</span>{<span class="tok-number">0</span>} ** <span class="tok-number">7</span>) ++ [<span class="tok-number">1</span>]<span class="tok-type">u8</span>{data[idx - <span class="tok-number">1</span>]};</span>
+<span class="line" id="L269">                        <span class="tok-kw">return</span> {};</span>
+<span class="line" id="L270">                    }</span>
+<span class="line" id="L271">                    <span class="tok-kw">break</span>;</span>
+<span class="line" id="L272">                }</span>
+<span class="line" id="L273"></span>
+<span class="line" id="L274">                idx = sw_idx;</span>
+<span class="line" id="L275">                len = sw_len;</span>
+<span class="line" id="L276">                data = msg;</span>
+<span class="line" id="L277">                sw_len = <span class="tok-number">0</span>;</span>
+<span class="line" id="L278">            }</span>
+<span class="line" id="L279">        }</span>
+<span class="line" id="L280"></span>
+<span class="line" id="L281">        std.mem.copy(<span class="tok-type">u8</span>, self.buf[buf_len..], data[idx .. idx + len]);</span>
+<span class="line" id="L282">        self.buf_len = buf_len + len;</span>
+<span class="line" id="L283">    }</span>
+<span class="line" id="L284"></span>
+<span class="line" id="L285">    <span class="tok-comment">/// Finalizes the streamed hashing session, and returns the hash of previously hashed data.</span></span>
+<span class="line" id="L286">    <span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">final</span>(self: *Komihash) <span class="tok-type">u64</span> {</span>
+<span class="line" id="L287">        <span class="tok-kw">var</span> idx: <span class="tok-type">usize</span> = <span class="tok-number">0</span>;</span>
+<span class="line" id="L288">        <span class="tok-kw">var</span> len = self.buf_len;</span>
+<span class="line" id="L289">        <span class="tok-kw">const</span> msg = self.buf[<span class="tok-number">0</span>..len];</span>
+<span class="line" id="L290"></span>
+<span class="line" id="L291">        <span class="tok-kw">if</span> (self.is_hashing == <span class="tok-null">false</span>)</span>
+<span class="line" id="L292">            <span class="tok-kw">return</span> KomihashStateless.hash(self.seeds[<span class="tok-number">0</span>], msg);</span>
+<span class="line" id="L293"></span>
+<span class="line" id="L294">        <span class="tok-kw">if</span> (self.last_bytes_opt == <span class="tok-null">null</span> <span class="tok-kw">and</span> len &lt; <span class="tok-number">9</span>) {</span>
+<span class="line" id="L295">            <span class="tok-kw">var</span> last_bytes = [<span class="tok-number">1</span>]<span class="tok-type">u8</span>{<span class="tok-number">0</span>} ** <span class="tok-number">8</span>;</span>
+<span class="line" id="L296">            <span class="tok-kw">var</span> i = <span class="tok-number">8</span> - len;</span>
+<span class="line" id="L297">            <span class="tok-kw">for</span> (msg) |byte| {</span>
+<span class="line" id="L298">                last_bytes[i] = byte;</span>
+<span class="line" id="L299">                i += <span class="tok-number">1</span>;</span>
+<span class="line" id="L300">            }</span>
+<span class="line" id="L301">            self.last_bytes_opt = last_bytes;</span>
+<span class="line" id="L302">        }</span>
+<span class="line" id="L303"></span>
+<span class="line" id="L304">        <span class="tok-kw">var</span> seed1 = self.seeds[<span class="tok-number">0</span>];</span>
+<span class="line" id="L305">        <span class="tok-kw">var</span> seed2 = self.seeds[<span class="tok-number">1</span>];</span>
+<span class="line" id="L306">        <span class="tok-kw">var</span> seed3 = self.seeds[<span class="tok-number">2</span>];</span>
+<span class="line" id="L307">        <span class="tok-kw">var</span> seed4 = self.seeds[<span class="tok-number">3</span>];</span>
+<span class="line" id="L308">        <span class="tok-kw">var</span> seed5 = self.seeds[<span class="tok-number">4</span>];</span>
+<span class="line" id="L309">        <span class="tok-kw">var</span> seed6 = self.seeds[<span class="tok-number">5</span>];</span>
+<span class="line" id="L310">        <span class="tok-kw">var</span> seed7 = self.seeds[<span class="tok-number">6</span>];</span>
+<span class="line" id="L311">        <span class="tok-kw">var</span> seed8 = self.seeds[<span class="tok-number">7</span>];</span>
+<span class="line" id="L312"></span>
+<span class="line" id="L313">        <span class="tok-kw">if</span> (len &gt; <span class="tok-number">63</span>) {</span>
+<span class="line" id="L314">            <span class="tok-kw">var</span> r1h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L315">            <span class="tok-kw">var</span> r2h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L316">            <span class="tok-kw">var</span> r3h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L317">            <span class="tok-kw">var</span> r4h: <span class="tok-type">u64</span> = <span class="tok-null">undefined</span>;</span>
+<span class="line" id="L318"></span>
+<span class="line" id="L319">            KomihashStateless.loop(msg, &amp;idx, &amp;len, &amp;seed1, &amp;seed2, &amp;seed3, &amp;seed4, &amp;seed5, &amp;seed6, &amp;seed7, &amp;seed8, &amp;r1h, &amp;r2h, &amp;r3h, &amp;r4h);</span>
+<span class="line" id="L320">        }</span>
+<span class="line" id="L321"></span>
+<span class="line" id="L322">        seed5 ^= seed6 ^ seed7 ^ seed8;</span>
+<span class="line" id="L323">        seed1 ^= seed2 ^ seed3 ^ seed4;</span>
+<span class="line" id="L324"></span>
+<span class="line" id="L325">        <span class="tok-kw">return</span> KomihashStateless.epilogue(msg, idx, len, seed1, seed5, self.last_bytes_opt);</span>
+<span class="line" id="L326">    }</span>
+<span class="line" id="L327"></span>
+<span class="line" id="L328">    <span class="tok-comment">/// Produces a 64-bit hash value of the specified message.</span></span>
+<span class="line" id="L329">    <span class="tok-kw">pub</span> <span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">hash</span>(seed: <span class="tok-type">u64</span>, msg: []<span class="tok-kw">const</span> <span class="tok-type">u8</span>) <span class="tok-type">u64</span> {</span>
+<span class="line" id="L330">        <span class="tok-kw">return</span> KomihashStateless.hash(seed, msg);</span>
+<span class="line" id="L331">    }</span>
+<span class="line" id="L332">};</span>
+<span class="line" id="L333"></span>
+<span class="line" id="L334"><span class="tok-kw">test</span> <span class="tok-str">&quot;KomihashStateless&quot;</span> {</span>
+<span class="line" id="L335">    <span class="tok-kw">for</span> (tests.SEEDS, <span class="tok-number">0</span>..) |seed, i| {</span>
+<span class="line" id="L336">        <span class="tok-kw">for</span> (tests.HASHES[i], <span class="tok-number">0</span>..) |hash, j| {</span>
+<span class="line" id="L337">            <span class="tok-kw">try</span> std.testing.expectEqual(hash, KomihashStateless.hash(seed, tests.MSGS[j]));</span>
+<span class="line" id="L338">        }</span>
+<span class="line" id="L339">    }</span>
+<span class="line" id="L340">}</span>
+<span class="line" id="L341"></span>
+<span class="line" id="L342"><span class="tok-kw">test</span> <span class="tok-str">&quot;Komihash&quot;</span> {</span>
+<span class="line" id="L343">    <span class="tok-kw">for</span> (tests.SEEDS, <span class="tok-number">0</span>..) |seed, i| {</span>
+<span class="line" id="L344">        <span class="tok-kw">for</span> (tests.HASHES[i], <span class="tok-number">0</span>..) |hash, j| {</span>
+<span class="line" id="L345">            <span class="tok-kw">var</span> stream = Komihash.init(seed);</span>
+<span class="line" id="L346">            stream.update(tests.MSGS[j]);</span>
+<span class="line" id="L347">            <span class="tok-kw">try</span> std.testing.expectEqual(hash, stream.final());</span>
+<span class="line" id="L348"></span>
+<span class="line" id="L349">            <span class="tok-kw">var</span> len: <span class="tok-type">u8</span> = <span class="tok-number">1</span>;</span>
+<span class="line" id="L350">            <span class="tok-kw">while</span> (len &lt; <span class="tok-number">128</span>) : (len += <span class="tok-number">1</span>) {</span>
+<span class="line" id="L351">                stream = Komihash.init(seed);</span>
+<span class="line" id="L352">                <span class="tok-kw">var</span> msg = tests.MSGS[j];</span>
+<span class="line" id="L353">                <span class="tok-kw">while</span> (msg.len &gt; <span class="tok-number">0</span>) {</span>
+<span class="line" id="L354">                    <span class="tok-kw">const</span> slice = msg[<span class="tok-number">0</span>..std.math.min(msg.len, len)];</span>
+<span class="line" id="L355">                    msg = msg[slice.len..];</span>
+<span class="line" id="L356">                    stream.update(slice);</span>
+<span class="line" id="L357">                }</span>
+<span class="line" id="L358">                <span class="tok-kw">try</span> std.testing.expectEqual(hash, stream.final());</span>
+<span class="line" id="L359">            }</span>
+<span class="line" id="L360">        }</span>
+<span class="line" id="L361">    }</span>
+<span class="line" id="L362">}</span>
+<span class="line" id="L363"></span>
 </code></pre></body>
 </html>

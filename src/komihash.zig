@@ -33,6 +33,7 @@ pub const KomihashStateless = struct {
     /// Common 64-byte full-performance hashing loop.
     inline fn loop(msg: []const u8, idx: *usize, len: *usize, seed1: *u64, seed2: *u64, seed3: *u64, seed4: *u64, seed5: *u64, seed6: *u64, seed7: *u64, seed8: *u64, r1h: *u64, r2h: *u64, r3h: *u64, r4h: *u64) void {
         std.debug.assert(len.* > 63);
+
         while (true) {
             const i = idx.*;
             @prefetch(msg, .{ .locality = 1 });
@@ -63,18 +64,20 @@ pub const KomihashStateless = struct {
         var s5 = seed5;
         var i = idx;
         var l = len;
-        @prefetch(msg, .{ .locality = 1 });
+
         if (utils.isLikely(l > 31)) {
             roundInput(msg, i, &s1, &s5, &r1h);
             roundInput(msg, i + 16, &s1, &s5, &r1h);
             i += 32;
             l -= 32;
         }
+
         if (l > 15) {
             roundInput(msg, i, &s1, &s5, &r1h);
             i += 16;
             l -= 16;
         }
+
         if (l > 7) {
             r2h = s5 ^ utils.padLong4(msg, i + 8, l - 8, last_bytes_opt);
             r1h = s1 ^ utils.readInt64(msg[i .. i + 8]);
@@ -82,6 +85,7 @@ pub const KomihashStateless = struct {
             r1h = s1 ^ utils.padLong4(msg, i, l, last_bytes_opt);
             r2h = s5;
         }
+
         final(&s1, &s5, &r1h, &r2h);
         return s1;
     }
@@ -94,9 +98,12 @@ pub const KomihashStateless = struct {
         var r2h: u64 = undefined;
         var idx: usize = 0;
         var len = msg.len;
+
+        @prefetch(msg, .{ .locality = 1 });
+
         roundNoInput(&seed1, &seed5, &r2h);
+
         if (utils.isLikely(len < 16)) {
-            @prefetch(msg, .{ .locality = 1 });
             r1h = seed1;
             r2h = seed5;
             if (len > 7) {
@@ -105,11 +112,12 @@ pub const KomihashStateless = struct {
             } else if (utils.isLikely(len != 0)) {
                 r1h ^= utils.padShort(msg, idx, len);
             }
+
             final(&seed1, &seed5, &r1h, &r2h);
             return seed1;
         }
+
         if (utils.isLikely(len < 32)) {
-            @prefetch(msg, .{ .locality = 1 });
             roundInput(msg, idx, &seed1, &seed5, &r1h);
             if (len > 23) {
                 r2h = seed5 ^ utils.padLong4(msg, idx + 24, len - 24, null);
@@ -118,9 +126,11 @@ pub const KomihashStateless = struct {
                 r1h = seed1 ^ utils.padLong4(msg, idx + 16, len - 16, null);
                 r2h = seed5;
             }
+
             final(&seed1, &seed5, &r1h, &r2h);
             return seed1;
         }
+
         if (len > 63) {
             var seed2 = 0x13198A2E03707344 ^ seed1;
             var seed3 = 0xA4093822299F31D0 ^ seed1;
@@ -130,10 +140,13 @@ pub const KomihashStateless = struct {
             var seed8 = 0x3F84D5B5B5470917 ^ seed5;
             var r3h: u64 = undefined;
             var r4h: u64 = undefined;
+
             loop(msg, &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8, &r1h, &r2h, &r3h, &r4h);
+
             seed5 ^= seed6 ^ seed7 ^ seed8;
             seed1 ^= seed2 ^ seed3 ^ seed4;
         }
+
         return epilogue(msg, idx, len, seed1, seed5, null);
     }
 };
@@ -167,6 +180,7 @@ pub const Komihash = struct {
         var idx: usize = 0;
         var len = msg.len;
         var data = msg;
+
         if (buf_len + len >= BUF_CAPACITY and buf_len != 0) {
             const copy_len = BUF_CAPACITY - buf_len;
             std.mem.copy(u8, self.buf[buf_len..], msg[0..copy_len]);
@@ -178,22 +192,27 @@ pub const Komihash = struct {
             idx = 0;
         } else if (len < 33) {
             var op = self.buf[buf_len..];
+
             if (len == 4) {
                 std.mem.copy(u8, op, msg[0..4]);
                 self.buf_len = buf_len + 4;
                 return {};
             }
+
             if (len == 8) {
                 std.mem.copy(u8, op, msg[0..8]);
                 self.buf_len = buf_len + 8;
                 return {};
             }
+
             if (len > 0) {
                 self.buf_len = buf_len + len;
                 std.mem.copy(u8, op, msg[0..len]);
             }
+
             return {};
         }
+
         if (buf_len == 0) {
             while (len > 127) {
                 var seed1: u64 = undefined;
@@ -208,6 +227,7 @@ pub const Komihash = struct {
                 var r2h: u64 = undefined;
                 var r3h: u64 = undefined;
                 var r4h: u64 = undefined;
+
                 if (self.is_hashing) {
                     seed1 = self.seeds[0];
                     seed2 = self.seeds[1];
@@ -230,7 +250,9 @@ pub const Komihash = struct {
                     seed7 = 0xC0AC29B7C97C50DD ^ seed5;
                     seed8 = 0x3F84D5B5B5470917 ^ seed5;
                 }
+
                 KomihashStateless.loop(data, &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8, &r1h, &r2h, &r3h, &r4h);
+
                 self.seeds[0] = seed1;
                 self.seeds[1] = seed2;
                 self.seeds[2] = seed3;
@@ -239,6 +261,7 @@ pub const Komihash = struct {
                 self.seeds[5] = seed6;
                 self.seeds[6] = seed7;
                 self.seeds[7] = seed8;
+
                 if (sw_len == 0) {
                     if (len == 0) {
                         self.buf_len = 0;
@@ -247,12 +270,14 @@ pub const Komihash = struct {
                     }
                     break;
                 }
+
                 idx = sw_idx;
                 len = sw_len;
                 data = msg;
                 sw_len = 0;
             }
         }
+
         std.mem.copy(u8, self.buf[buf_len..], data[idx .. idx + len]);
         self.buf_len = buf_len + len;
     }
@@ -262,8 +287,10 @@ pub const Komihash = struct {
         var idx: usize = 0;
         var len = self.buf_len;
         const msg = self.buf[0..len];
+
         if (self.is_hashing == false)
             return KomihashStateless.hash(self.seeds[0], msg);
+
         if (self.last_bytes_opt == null and len < 9) {
             var last_bytes = [1]u8{0} ** 8;
             var i = 8 - len;
@@ -273,6 +300,7 @@ pub const Komihash = struct {
             }
             self.last_bytes_opt = last_bytes;
         }
+
         var seed1 = self.seeds[0];
         var seed2 = self.seeds[1];
         var seed3 = self.seeds[2];
@@ -281,15 +309,19 @@ pub const Komihash = struct {
         var seed6 = self.seeds[5];
         var seed7 = self.seeds[6];
         var seed8 = self.seeds[7];
+
         if (len > 63) {
             var r1h: u64 = undefined;
             var r2h: u64 = undefined;
             var r3h: u64 = undefined;
             var r4h: u64 = undefined;
+
             KomihashStateless.loop(msg, &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8, &r1h, &r2h, &r3h, &r4h);
         }
+
         seed5 ^= seed6 ^ seed7 ^ seed8;
         seed1 ^= seed2 ^ seed3 ^ seed4;
+
         return KomihashStateless.epilogue(msg, idx, len, seed1, seed5, self.last_bytes_opt);
     }
 
