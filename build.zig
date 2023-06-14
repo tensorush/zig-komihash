@@ -7,7 +7,7 @@ pub fn build(b: *Builder) void {
         .root_source_file = .{ .path = "src/komihash.zig" },
         .target = b.standardTargetOptions(.{}),
         .optimize = .ReleaseSafe,
-        .version = .{ .major = 5, .minor = 0 },
+        .version = .{ .major = 5, .minor = 1 },
     });
     lib.emit_docs = .emit;
     b.installArtifact(lib);
