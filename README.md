@@ -1,4 +1,4 @@
-## :zap: :hash: **zig-komihash**
+## :lizard: :hash: **zig komihash**
 
 [![CI][ci-shield]][ci-url]
 [![Docs][docs-shield]][docs-url]
