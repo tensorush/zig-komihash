@@ -5,7 +5,7 @@
 [![License][license-shield]][license-url]
 [![Resources][resources-shield]][resources-url]
 
-### Zig port of [komihash v5.1](https://github.com/avaneev/komihash).
+### Zig port of [komihash v5.3](https://github.com/avaneev/komihash).
 
 #### :bar_chart: Benchmarks
 

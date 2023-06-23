@@ -351,7 +351,7 @@ test "Komihash" {
                 stream = Komihash.init(seed);
                 var msg = tests.MSGS[j];
                 while (msg.len > 0) {
-                    const slice = msg[0..std.math.min(msg.len, len)];
+                    const slice = msg[0..@min(msg.len, len)];
                     msg = msg[slice.len..];
                     stream.update(slice);
                 }

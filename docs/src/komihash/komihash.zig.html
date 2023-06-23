@@ -464,7 +464,7 @@
 <span class="line" id="L351">                stream = Komihash.init(seed);</span>
 <span class="line" id="L352">                <span class="tok-kw">var</span> msg = tests.MSGS[j];</span>
 <span class="line" id="L353">                <span class="tok-kw">while</span> (msg.len &gt; <span class="tok-number">0</span>) {</span>
-<span class="line" id="L354">                    <span class="tok-kw">const</span> slice = msg[<span class="tok-number">0</span>..std.math.min(msg.len, len)];</span>
+<span class="line" id="L354">                    <span class="tok-kw">const</span> slice = msg[<span class="tok-number">0</span>..<span class="tok-builtin">@min</span>(msg.len, len)];</span>
 <span class="line" id="L355">                    msg = msg[slice.len..];</span>
 <span class="line" id="L356">                    stream.update(slice);</span>
 <span class="line" id="L357">                }</span>
