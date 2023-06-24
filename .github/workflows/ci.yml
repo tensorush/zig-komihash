@@ -23,7 +23,7 @@ jobs:
         with:
           version: master
 
-      - name: Run CI
+      - name: Run tests
         run: |
           zig env
           zig build test

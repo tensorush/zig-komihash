@@ -5,7 +5,45 @@
 [![License][license-shield]][license-url]
 [![Resources][resources-shield]][resources-url]
 
-### Zig port of [komihash v5.3](https://github.com/avaneev/komihash).
+### Zig port of [komihash v5.3](https://github.com/avaneev/komihash) by [Aleksey Vaneev](https://github.com/avaneev).
+
+#### :rocket: Usage
+
+1. Add `komihash` as a dependency in your `build.zig.zon`.
+
+    <details>
+
+    <summary><code>build.zig.zon</code> example</summary>
+
+    ```zig
+    .{
+        .name = "<name_of_your_program>",
+        .version = "<version_of_your_program>",
+        .dependencies = .{
+            .komihash = .{
+                .url = "https://github.com/tensorush/zig-komihash/archive/refs/tags/<git_tag>.tar.gz",
+                .hash = "<package_hash>",
+            },
+        },
+    }
+    ```
+
+    If unsure what to fill out for `<package_hash>`, set it to `12200000000000000000000000000000000000000000000000000000000000000000` and Zig will tell you the correct value in an error message.
+
+    </details>
+
+2. Add `komihash` as a module in your `build.zig`.
+
+    <details>
+
+    <summary><code>build.zig</code> example</summary>
+
+    ```zig
+    const komihash = b.dependency("komihash", .{});
+    exe.addModule("komihash", komihash.module("komihash"));
+    ```
+
+    </details>
 
 #### :bar_chart: Benchmarks
 
