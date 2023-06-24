@@ -1,6 +1,7 @@
 MIT License
 
 Copyright (c) 2021-2023 Aleksey Vaneev
+
 Copyright (c) 2023 Jora Troosh
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
