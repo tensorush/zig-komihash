@@ -1,13 +1,13 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    const main_source_file = std.Build.FileSource.relative("src/komihash.zig");
+    const root_source_file = std.Build.FileSource.relative("src/komihash.zig");
 
-    _ = b.addModule("komihash", .{ .source_file = main_source_file });
+    _ = b.addModule("komihash", .{ .source_file = root_source_file });
 
     const lib = b.addStaticLibrary(.{
         .name = "komihash",
-        .root_source_file = main_source_file,
+        .root_source_file = root_source_file,
         .target = b.standardTargetOptions(.{}),
         .optimize = .ReleaseSafe,
         .version = .{ .major = 5, .minor = 3, .patch = 0 },
@@ -36,6 +36,7 @@ pub fn build(b: *std.Build) void {
 
     const tests_step = b.step("test", "Run tests");
     tests_step.dependOn(&tests_run.step);
+    b.default_step.dependOn(tests_step);
 
     const lints = b.addFmt(.{
         .paths = &[_][]const u8{ "src", "build.zig" },
@@ -44,4 +45,5 @@ pub fn build(b: *std.Build) void {
 
     const lints_step = b.step("lint", "Run lints");
     lints_step.dependOn(&lints.step);
+    b.default_step.dependOn(lints_step);
 }
