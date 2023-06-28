@@ -154,7 +154,7 @@ pub const KomihashStateless = struct {
 /// Komihash structure holding streamed hashing state.
 pub const Komihash = struct {
     /// Streamed hashing buffer capacity, must be a multiple of 64, and not less than 128.
-    const BUF_CAPACITY = 768;
+    pub const BUF_CAPACITY = 768;
 
     /// Buffer for storing the hashing state.
     buf: [BUF_CAPACITY]u8 = undefined,

@@ -267,7 +267,7 @@
 <span class="line" id="L154"><span class="tok-comment">/// Komihash structure holding streamed hashing state.</span></span>
 <span class="line" id="L155"><span class="tok-kw">pub</span> <span class="tok-kw">const</span> Komihash = <span class="tok-kw">struct</span> {</span>
 <span class="line" id="L156">    <span class="tok-comment">/// Streamed hashing buffer capacity, must be a multiple of 64, and not less than 128.</span></span>
-<span class="line" id="L157">    <span class="tok-kw">const</span> BUF_CAPACITY = <span class="tok-number">768</span>;</span>
+<span class="line" id="L157">    <span class="tok-kw">pub</span> <span class="tok-kw">const</span> BUF_CAPACITY = <span class="tok-number">768</span>;</span>
 <span class="line" id="L158"></span>
 <span class="line" id="L159">    <span class="tok-comment">/// Buffer for storing the hashing state.</span></span>
 <span class="line" id="L160">    buf: [BUF_CAPACITY]<span class="tok-type">u8</span> = <span class="tok-null">undefined</span>,</span>
