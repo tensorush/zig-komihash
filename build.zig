@@ -3,6 +3,8 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const main_source_file = std.Build.FileSource.relative("src/komihash.zig");
 
+    _ = b.addModule("komihash", .{ .source_file = main_source_file });
+
     const lib = b.addStaticLibrary(.{
         .name = "komihash",
         .root_source_file = main_source_file,
@@ -12,11 +14,6 @@ pub fn build(b: *std.Build) void {
     });
     lib.emit_docs = .emit;
     b.installArtifact(lib);
-
-    const lib_step = b.step("lib", "Install library");
-    lib_step.dependOn(&lib.step);
-
-    _ = b.addModule("komihash", .{ .source_file = main_source_file });
 
     const benchmarks = b.addExecutable(.{
         .name = "hash_throughput_benchmarks",
