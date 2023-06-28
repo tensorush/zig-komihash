@@ -28,6 +28,7 @@ pub fn build(b: *std.Build) void {
 
     const benchmarks_step = b.step("bench", "Run benchmarks");
     benchmarks_step.dependOn(&benchmarks_run.step);
+    b.default_step.dependOn(benchmarks_step);
 
     const tests = b.addTest(.{
         .root_source_file = std.Build.FileSource.relative("src/tests.zig"),
