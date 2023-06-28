@@ -46,7 +46,7 @@ pub inline fn fill(self: *Komirand, buf: []u8) void {
         var n = self.next();
         comptime var j: usize = 0;
         inline while (j < 8) : (j += 1) {
-            buf[i + j] = @truncate(u8, n);
+            buf[i + j] = @truncate(n);
             n >>= 8;
         }
     }
@@ -54,7 +54,7 @@ pub inline fn fill(self: *Komirand, buf: []u8) void {
     if (i != buf.len) {
         var n = self.next();
         while (i < buf.len) : (i += 1) {
-            buf[i] = @truncate(u8, n);
+            buf[i] = @truncate(n);
             n >>= 8;
         }
     }

@@ -65,13 +65,13 @@ fn benchmarkHash(comptime H: anytype, bytes: usize, allocator: std.mem.Allocator
     for (0..blocks_count) |i| {
         hash.update(blocks[i * ALIGNMENT ..][0..BLOCK_SIZE]);
     }
-    const final = if (H.has_crypto_api) @truncate(u64, hash.finalInt()) else hash.final();
+    const final = if (H.has_crypto_api) @as(u64, @truncate(hash.finalInt())) else hash.final();
     std.mem.doNotOptimizeAway(final);
 
     const end = timer.read();
 
-    const elapsed_s = @floatFromInt(f64, end - start) / std.time.ns_per_s;
-    const throughput = @intFromFloat(u64, @floatFromInt(f64, bytes) / elapsed_s);
+    const elapsed_s = @as(f64, @floatFromInt(end - start)) / std.time.ns_per_s;
+    const throughput = @as(u64, @intFromFloat(@as(f64, @floatFromInt(bytes)) / elapsed_s));
 
     return Result{
         .hash = final,
@@ -95,7 +95,7 @@ fn benchmarkHashSmallKeys(comptime H: anytype, key_size: usize, bytes: usize, al
         const final = blk: {
             if (H.init_u8s_opt) |init_u8s| {
                 if (H.has_crypto_api) {
-                    break :blk @truncate(u64, H.ty.toInt(small_key, init_u8s[0..H.ty.key_length]));
+                    break :blk @as(u64, @truncate(H.ty.toInt(small_key, init_u8s[0..H.ty.key_length])));
                 } else {
                     break :blk H.ty.hash(init_u8s, small_key);
                 }
@@ -109,8 +109,8 @@ fn benchmarkHashSmallKeys(comptime H: anytype, key_size: usize, bytes: usize, al
     }
     const end = timer.read();
 
-    const elapsed_s = @floatFromInt(f64, end - start) / std.time.ns_per_s;
-    const throughput = @intFromFloat(u64, @floatFromInt(f64, bytes) / elapsed_s);
+    const elapsed_s = @as(f64, @floatFromInt(end - start)) / std.time.ns_per_s;
+    const throughput = @as(u64, @intFromFloat(@as(f64, @floatFromInt(bytes)) / elapsed_s));
 
     std.mem.doNotOptimizeAway(sum);
 

@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths: ["**.zig"]
+
   pull_request:
     branches: [main]
     paths: ["**.zig"]
@@ -39,5 +40,5 @@ jobs:
         with:
           version: master
 
-      - name: Run Zig linter
+      - name: Run linter
         run: zig build fmt
