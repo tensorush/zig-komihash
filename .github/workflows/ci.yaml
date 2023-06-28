@@ -40,5 +40,5 @@ jobs:
         with:
           version: master
 
-      - name: Run linter
-        run: zig build fmt
+      - name: Run lints
+        run: zig build lint

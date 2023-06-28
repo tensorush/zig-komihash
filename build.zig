@@ -16,32 +16,32 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(lib);
 
     const benchmarks = b.addExecutable(.{
-        .name = "hash_throughput_benchmarks",
+        .name = "benchmarks",
         .root_source_file = std.Build.FileSource.relative("src/benchmarks.zig"),
         .optimize = .ReleaseFast,
     });
-    const run_benchmarks = b.addRunArtifact(benchmarks);
+    const benchmarks_run = b.addRunArtifact(benchmarks);
 
     if (b.args) |args| {
-        run_benchmarks.addArgs(args);
+        benchmarks_run.addArgs(args);
     }
 
     const benchmarks_step = b.step("bench", "Run benchmarks");
-    benchmarks_step.dependOn(&run_benchmarks.step);
+    benchmarks_step.dependOn(&benchmarks_run.step);
 
     const tests = b.addTest(.{
         .root_source_file = std.Build.FileSource.relative("src/tests.zig"),
     });
-    const run_tests = b.addRunArtifact(tests);
+    const tests_run = b.addRunArtifact(tests);
 
     const tests_step = b.step("test", "Run tests");
-    tests_step.dependOn(&run_tests.step);
+    tests_step.dependOn(&tests_run.step);
 
-    const fmt = b.addFmt(.{
+    const lints = b.addFmt(.{
         .paths = &[_][]const u8{ "src", "build.zig" },
         .check = true,
     });
 
-    const fmt_step = b.step("fmt", "Run linter");
-    fmt_step.dependOn(&fmt.step);
+    const lints_step = b.step("lint", "Run lints");
+    lints_step.dependOn(&lints.step);
 }
