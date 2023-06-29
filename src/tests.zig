@@ -1,4 +1,4 @@
-//! Root test file that contains library test data.
+//! Root test file that and contains library test data.
 
 test {
     @import("std").testing.refAllDecls(@This());

@@ -1,10 +1,8 @@
-//! Root library file that exposes the public API.
+//! Fast, high-quality non-cryptographic hash function, discrete-incremental and streamed-hashing-capable.
 
 const std = @import("std");
-const tests = @import("tests.zig");
 const utils = @import("utils.zig");
-
-pub const Komirand = @import("Komirand.zig");
+const tests = @import("tests.zig");
 
 /// KomihashStateless hash function namespace.
 pub const KomihashStateless = struct {
@@ -51,8 +49,9 @@ pub const KomihashStateless = struct {
             seed3.* ^= seed6.*;
             seed4.* ^= seed7.*;
             seed1.* ^= seed8.*;
-            if (!utils.isLikely(len.* > 63))
+            if (!utils.isLikely(len.* > 63)) {
                 break;
+            }
         }
     }
 
@@ -150,6 +149,14 @@ pub const KomihashStateless = struct {
         return epilogue(msg, idx, len, seed1, seed5, null);
     }
 };
+
+test "KomihashStateless" {
+    for (tests.SEEDS, 0..) |seed, i| {
+        for (tests.HASHES[i], 0..) |hash, j| {
+            try std.testing.expectEqual(hash, KomihashStateless.hash(seed, tests.MSGS[j]));
+        }
+    }
+}
 
 /// Komihash structure holding streamed hashing state.
 pub const Komihash = struct {
@@ -288,8 +295,9 @@ pub const Komihash = struct {
         var len = self.buf_len;
         const msg = self.buf[0..len];
 
-        if (self.is_hashing == false)
+        if (self.is_hashing == false) {
             return KomihashStateless.hash(self.seeds[0], msg);
+        }
 
         if (self.last_bytes_opt == null and len < 9) {
             var last_bytes = [1]u8{0} ** 8;
@@ -330,14 +338,6 @@ pub const Komihash = struct {
         return KomihashStateless.hash(seed, msg);
     }
 };
-
-test "KomihashStateless" {
-    for (tests.SEEDS, 0..) |seed, i| {
-        for (tests.HASHES[i], 0..) |hash, j| {
-            try std.testing.expectEqual(hash, KomihashStateless.hash(seed, tests.MSGS[j]));
-        }
-    }
-}
 
 test "Komihash" {
     for (tests.SEEDS, 0..) |seed, i| {

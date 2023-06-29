@@ -9,8 +9,9 @@ pub inline fn coldPath() void {
 
 /// Likelihood check for manually-guided branch prediction.
 pub inline fn isLikely(is_likely: bool) bool {
-    if (!is_likely)
+    if (!is_likely) {
         coldPath();
+    }
     return is_likely;
 }
 

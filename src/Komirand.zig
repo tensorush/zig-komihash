@@ -3,8 +3,8 @@
 //! suggested "warming up" initialization before using its output.
 
 const std = @import("std");
-const tests = @import("tests.zig");
 const utils = @import("utils.zig");
+const tests = @import("tests.zig");
 
 const Komirand = @This();
 

@@ -1,7 +1,7 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    const root_source_file = std.Build.FileSource.relative("src/komihash.zig");
+    const root_source_file = std.Build.FileSource.relative("src/lib.zig");
 
     _ = b.addModule("komihash", .{ .source_file = root_source_file });
 
@@ -10,7 +10,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = root_source_file,
         .target = b.standardTargetOptions(.{}),
         .optimize = .ReleaseSafe,
-        .version = .{ .major = 5, .minor = 3, .patch = 0 },
+        .version = .{ .major = 5, .minor = 4, .patch = 0 },
     });
     lib.emit_docs = .emit;
     b.installArtifact(lib);

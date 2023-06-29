@@ -5,7 +5,7 @@
 [![License][license-shield]][license-url]
 [![Resources][resources-shield]][resources-url]
 
-### Zig port of [komihash v5.3](https://github.com/avaneev/komihash) by [Aleksey Vaneev](https://github.com/avaneev).
+### Zig port of [komihash v5.4.0](https://github.com/avaneev/komihash) by [Aleksey Vaneev](https://github.com/avaneev).
 
 #### :rocket: Usage
 

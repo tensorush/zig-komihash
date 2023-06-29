@@ -201,7 +201,9 @@ pub fn main() MainError!void {
     }
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer if (gpa.deinit() == .leak) @panic("Leak!");
+    defer if (gpa.deinit() == .leak) {
+        @panic("Leak!");
+    };
     const allocator = gpa.allocator();
 
     inline for (HASHES) |HASH| {
