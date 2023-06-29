@@ -13,15 +13,19 @@ pub fn build(b: *std.Build) void {
         .version = .{ .major = 5, .minor = 4, .patch = 0 },
     });
     lib.emit_docs = .emit;
-    b.installArtifact(lib);
+
+    const lib_install = b.addInstallArtifact(lib);
+    const lib_step = b.step("lib", "Install lib");
+    lib_step.dependOn(&lib_install.step);
+    b.default_step.dependOn(lib_step);
 
     const benchmarks = b.addExecutable(.{
         .name = "benchmarks",
         .root_source_file = std.Build.FileSource.relative("src/benchmarks.zig"),
         .optimize = .ReleaseFast,
     });
-    const benchmarks_run = b.addRunArtifact(benchmarks);
 
+    const benchmarks_run = b.addRunArtifact(benchmarks);
     if (b.args) |args| {
         benchmarks_run.addArgs(args);
     }
@@ -33,8 +37,8 @@ pub fn build(b: *std.Build) void {
     const tests = b.addTest(.{
         .root_source_file = std.Build.FileSource.relative("src/tests.zig"),
     });
-    const tests_run = b.addRunArtifact(tests);
 
+    const tests_run = b.addRunArtifact(tests);
     const tests_step = b.step("test", "Run tests");
     tests_step.dependOn(&tests_run.step);
     b.default_step.dependOn(tests_step);
