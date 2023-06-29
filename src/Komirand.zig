@@ -6,7 +6,7 @@ const std = @import("std");
 const utils = @import("utils.zig");
 const tests = @import("tests.zig");
 
-pub const Komirand = @This();
+const Komirand = @This();
 
 /// Base seed.
 seed1: u64 = 0,
