@@ -1,7 +1,7 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    const root_source_file = std.Build.FileSource.relative("src/lib.zig");
+    const root_source_file = std.Build.FileSource.relative("src/komihash.zig");
 
     _ = b.addModule("komihash", .{ .source_file = root_source_file });
 
@@ -35,7 +35,7 @@ pub fn build(b: *std.Build) void {
     b.default_step.dependOn(benchmarks_step);
 
     const tests = b.addTest(.{
-        .root_source_file = std.Build.FileSource.relative("src/tests.zig"),
+        .root_source_file = root_source_file,
     });
 
     const tests_run = b.addRunArtifact(tests);

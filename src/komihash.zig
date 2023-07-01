@@ -1,10 +1,76 @@
-//! Fast, high-quality non-cryptographic hash function, discrete-incremental and streamed-hashing-capable.
+//! Root library file that exposes the public API.
 
 const std = @import("std");
 const utils = @import("utils.zig");
-const tests = @import("tests.zig");
+const test_data = @import("test_data.zig");
 
-/// KomihashStateless hash function namespace.
+/// Simple, reliable, self-starting yet efficient PRNG, with 2^64 period.
+/// 0.62 cycles/byte performance. Self-starts in 4 iterations, which is a
+/// suggested "warming up" initialization before using its output.
+pub const Komirand = struct {
+    /// Base seed.
+    seed1: u64 = 0,
+    /// Extra seed.
+    seed2: u64 = 0,
+
+    /// Initializes PRNG with one seed.
+    pub inline fn init(seed: u64) Komirand {
+        return .{ .seed1 = seed, .seed2 = seed };
+    }
+
+    /// Initializes PRNG with two seeds. Best initialized to the same value.
+    pub inline fn initWithExtraSeed(seed1: u64, seed2: u64) Komirand {
+        return .{ .seed1 = seed1, .seed2 = seed2 };
+    }
+
+    /// Provides Random API initialized with the fill function.
+    pub inline fn random(self: *Komirand) std.rand.Random {
+        return std.rand.Random.init(self, fill);
+    }
+
+    /// Produces the next uniformly-random 64-bit value.
+    pub inline fn next(self: *Komirand) u64 {
+        var rh: u64 = undefined;
+        utils.mul128(self.seed1, self.seed2, &self.seed1, &rh);
+        self.seed2 +%= rh +% 0xAAAAAAAAAAAAAAAA;
+        self.seed1 ^= self.seed2;
+        return self.seed1;
+    }
+
+    /// Fills a byte buffer with pseudo-random values.
+    pub inline fn fill(self: *Komirand, buf: []u8) void {
+        const aligned_len = buf.len - (buf.len & 7);
+        var i: usize = 0;
+
+        while (i < aligned_len) : (i += 8) {
+            var n = self.next();
+            comptime var j: usize = 0;
+            inline while (j < 8) : (j += 1) {
+                buf[i + j] = @truncate(n);
+                n >>= 8;
+            }
+        }
+
+        if (i != buf.len) {
+            var n = self.next();
+            while (i < buf.len) : (i += 1) {
+                buf[i] = @truncate(n);
+                n >>= 8;
+            }
+        }
+    }
+
+    test "Komirand" {
+        for (test_data.SEEDS, 0..) |seed, i| {
+            var komirand = Komirand.init(seed);
+            for (test_data.VALUES[i]) |value| {
+                try std.testing.expectEqual(value, komirand.next());
+            }
+        }
+    }
+};
+
+/// Fast, high-quality non-cryptographic hash function, discrete-incremental and streamed-hashing-capable.
 pub const KomihashStateless = struct {
     /// Common hashing round with 16-byte input, using the "r1h" temporary variable.
     inline fn roundInput(msg: []const u8, idx: usize, seed1: *u64, seed5: *u64, r1h: *u64) void {
@@ -148,15 +214,15 @@ pub const KomihashStateless = struct {
 
         return epilogue(msg, idx, len, seed1, seed5, null);
     }
-};
 
-test "KomihashStateless" {
-    for (tests.SEEDS, 0..) |seed, i| {
-        for (tests.HASHES[i], 0..) |hash, j| {
-            try std.testing.expectEqual(hash, KomihashStateless.hash(seed, tests.MSGS[j]));
+    test "KomihashStateless" {
+        for (test_data.SEEDS, 0..) |seed, i| {
+            for (test_data.HASHES[i], 0..) |expected_hash, j| {
+                try std.testing.expectEqual(expected_hash, KomihashStateless.hash(seed, test_data.MSGS[j]));
+            }
         }
     }
-}
+};
 
 /// Komihash structure holding streamed hashing state.
 pub const Komihash = struct {
@@ -337,26 +403,30 @@ pub const Komihash = struct {
     pub inline fn hash(seed: u64, msg: []const u8) u64 {
         return KomihashStateless.hash(seed, msg);
     }
-};
 
-test "Komihash" {
-    for (tests.SEEDS, 0..) |seed, i| {
-        for (tests.HASHES[i], 0..) |hash, j| {
-            var stream = Komihash.init(seed);
-            stream.update(tests.MSGS[j]);
-            try std.testing.expectEqual(hash, stream.final());
+    test "Komihash" {
+        for (test_data.SEEDS, 0..) |seed, i| {
+            for (test_data.HASHES[i], 0..) |expected_hash, j| {
+                var stream = Komihash.init(seed);
+                stream.update(test_data.MSGS[j]);
+                try std.testing.expectEqual(expected_hash, stream.final());
 
-            var len: u8 = 1;
-            while (len < 128) : (len += 1) {
-                stream = Komihash.init(seed);
-                var msg = tests.MSGS[j];
-                while (msg.len > 0) {
-                    const slice = msg[0..@min(msg.len, len)];
-                    msg = msg[slice.len..];
-                    stream.update(slice);
+                var len: u8 = 1;
+                while (len < 128) : (len += 1) {
+                    stream = Komihash.init(seed);
+                    var msg = test_data.MSGS[j];
+                    while (msg.len > 0) {
+                        const slice = msg[0..@min(msg.len, len)];
+                        msg = msg[slice.len..];
+                        stream.update(slice);
+                    }
+                    try std.testing.expectEqual(expected_hash, stream.final());
                 }
-                try std.testing.expectEqual(hash, stream.final());
             }
         }
     }
+};
+
+test {
+    std.testing.refAllDecls(@This());
 }
