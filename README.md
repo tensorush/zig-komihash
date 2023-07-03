@@ -1,11 +1,12 @@
 ## :lizard: :hash: **zig komihash**
 
 [![CI][ci-shield]][ci-url]
+[![CD][cd-shield]][cd-url]
 [![Docs][docs-shield]][docs-url]
 [![License][license-shield]][license-url]
 [![Resources][resources-shield]][resources-url]
 
-### Zig port of [komihash and komirand](https://github.com/avaneev/komihash) by [Aleksey Vaneev](https://github.com/avaneev).
+### Zig port of [komihash hash function](https://github.com/avaneev/komihash) created by [Aleksey Vaneev](https://github.com/avaneev).
 
 #### :rocket: Usage
 
@@ -28,7 +29,7 @@
     }
     ```
 
-    If unsure what to fill out for `<package_hash>`, set it to `12200000000000000000000000000000000000000000000000000000000000000000` and Zig will tell you the correct value in an error message.
+    If unsure what to fill out for `<package_hash>`, set it to any value and Zig will provide the correct one in an error message.
 
     </details>
 
@@ -92,6 +93,8 @@ siphash128:
 
 [ci-shield]: https://img.shields.io/github/actions/workflow/status/tensorush/zig-komihash/ci.yaml?branch=main&style=for-the-badge&logo=github&label=CI&labelColor=black
 [ci-url]: https://github.com/tensorush/zig-komihash/blob/main/.github/workflows/ci.yaml
+[cd-shield]: https://img.shields.io/github/actions/workflow/status/tensorush/zig-komihash/cd.yaml?branch=main&style=for-the-badge&logo=github&label=CD&labelColor=black
+[cd-url]: https://github.com/tensorush/zig-komihash/blob/main/.github/workflows/cd.yaml
 [docs-shield]: https://img.shields.io/badge/click-F6A516?style=for-the-badge&logo=zig&logoColor=F6A516&label=docs&labelColor=black
 [docs-url]: https://tensorush.github.io/zig-komihash
 [license-shield]: https://img.shields.io/github/license/tensorush/zig-komihash.svg?style=for-the-badge&labelColor=black
