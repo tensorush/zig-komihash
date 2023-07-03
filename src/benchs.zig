@@ -122,15 +122,16 @@ fn benchmarkHashSmallKeys(comptime H: anytype, key_size: usize, bytes: usize, al
 
 fn getHelp() void {
     std.debug.print(
-        \\hash_throughput_benchmarks [options]
+        \\hash_bench [options]
         \\
         \\Options:
-        \\  --filter    [test-name]
-        \\  --seed      [int]
-        \\  --count     [int]
-        \\  --key-size  [int]
-        \\  --iter-only
-        \\  --help
+        \\  -f <string> Filter a specific hash to benchmark.
+        \\  -s <int>    Set the PRNG seed value.
+        \\  -k <int>    Set the size of keys to hash.
+        \\  -c <int>    Set the block count of bytes to hash.
+        \\  -i          Benchmark only the iterative API without small keys.
+        \\  -m          Print the optimization mode.
+        \\  -h          Display this help.
         \\
     , .{});
 }
@@ -153,24 +154,24 @@ pub fn main() MainError!void {
 
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
-        if (std.mem.eql(u8, args[i], "--mode")) {
+        if (std.mem.eql(u8, args[i], "-m")) {
             try stdout.print("{}\n", .{builtin.mode});
-            return;
-        } else if (std.mem.eql(u8, args[i], "--seed")) {
+            return {};
+        } else if (std.mem.eql(u8, args[i], "-s")) {
             i += 1;
             if (i == args.len) {
                 getHelp();
                 std.os.exit(1);
             }
             seed = try std.fmt.parseUnsigned(u32, args[i], 10);
-        } else if (std.mem.eql(u8, args[i], "--filter_opt")) {
+        } else if (std.mem.eql(u8, args[i], "-f")) {
             i += 1;
             if (i == args.len) {
                 getHelp();
                 std.os.exit(1);
             }
             filter_opt = args[i];
-        } else if (std.mem.eql(u8, args[i], "--count")) {
+        } else if (std.mem.eql(u8, args[i], "-c")) {
             i += 1;
             if (i == args.len) {
                 getHelp();
@@ -178,7 +179,7 @@ pub fn main() MainError!void {
             }
             const c = try std.fmt.parseUnsigned(usize, args[i], 10);
             count = c * MiB;
-        } else if (std.mem.eql(u8, args[i], "--key-size")) {
+        } else if (std.mem.eql(u8, args[i], "-k")) {
             i += 1;
             if (i == args.len) {
                 getHelp();
@@ -189,11 +190,11 @@ pub fn main() MainError!void {
                 try stdout.print("key_size cannot exceed BLOCK_SIZE of {d}\n", .{BLOCK_SIZE});
                 std.os.exit(1);
             }
-        } else if (std.mem.eql(u8, args[i], "--iter-only")) {
+        } else if (std.mem.eql(u8, args[i], "-i")) {
             is_iter_only = true;
-        } else if (std.mem.eql(u8, args[i], "--help")) {
+        } else if (std.mem.eql(u8, args[i], "-h")) {
             getHelp();
-            return;
+            return {};
         } else {
             getHelp();
             std.os.exit(1);
