@@ -18,18 +18,18 @@
 
     ```zig
     .{
-        .name = "<name_of_your_program>",
-        .version = "<version_of_your_program>",
+        .name = "<name_of_your_package>",
+        .version = "<version_of_your_package>",
         .dependencies = .{
             .komihash = .{
-                .url = "https://github.com/tensorush/zig-komihash/archive/refs/tags/<git_tag>.tar.gz",
+                .url = "https://github.com/tensorush/zig-komihash/archive/<git_tag_or_commit_hash>.tar.gz",
                 .hash = "<package_hash>",
             },
         },
     }
     ```
 
-    If unsure what to fill out for `<package_hash>`, set it to any value and Zig will provide the correct one in an error message.
+    Set `<package_hash>` to `12200000000000000000000000000000000000000000000000000000000000000000`, and Zig will provide the correct found value in an error message.
 
     </details>
 

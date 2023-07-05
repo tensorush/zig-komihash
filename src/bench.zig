@@ -1,5 +1,5 @@
 //! Root benchmark file that compares Komihash throughput against other `std.hash` functions.
-//! Based on https://github.com/ziglang/zig/blob/master/lib/std/hash/benchmark.zig.
+//! Source: https://github.com/ziglang/zig/blob/master/lib/std/hash/benchmark.zig.
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -8,6 +8,20 @@ const Komihash = @import("komihash.zig").Komihash;
 const MiB: usize = 1 << 20;
 const ALIGNMENT: usize = 1 << 6;
 const BLOCK_SIZE: usize = 1 << 16;
+
+const HELP =
+    \\hash_bench [options]
+    \\
+    \\Options:
+    \\  -f <string> Filter a specific hash to benchmark.
+    \\  -s <int>    Set the PRNG seed value.
+    \\  -k <int>    Set the size of keys to hash.
+    \\  -c <int>    Set the block count of bytes to hash.
+    \\  -i          Benchmark only the iterative API without small keys.
+    \\  -m          Print the optimization mode.
+    \\  -h          Display this help.
+    \\
+;
 
 const HASHES = [_]Hash{
     Hash{ .ty = std.hash.Fnv1a_64, .name = "fnv1a" },
@@ -120,22 +134,6 @@ fn benchmarkHashSmallKeys(comptime H: anytype, key_size: usize, bytes: usize, al
     };
 }
 
-fn getHelp() void {
-    std.debug.print(
-        \\hash_bench [options]
-        \\
-        \\Options:
-        \\  -f <string> Filter a specific hash to benchmark.
-        \\  -s <int>    Set the PRNG seed value.
-        \\  -k <int>    Set the size of keys to hash.
-        \\  -c <int>    Set the block count of bytes to hash.
-        \\  -i          Benchmark only the iterative API without small keys.
-        \\  -m          Print the optimization mode.
-        \\  -h          Display this help.
-        \\
-    , .{});
-}
-
 pub fn main() MainError!void {
     const stdout = std.io.getStdOut().writer();
 
@@ -160,21 +158,21 @@ pub fn main() MainError!void {
         } else if (std.mem.eql(u8, args[i], "-s")) {
             i += 1;
             if (i == args.len) {
-                getHelp();
+                std.debug.print(HELP, .{});
                 std.os.exit(1);
             }
             seed = try std.fmt.parseUnsigned(u32, args[i], 10);
         } else if (std.mem.eql(u8, args[i], "-f")) {
             i += 1;
             if (i == args.len) {
-                getHelp();
+                std.debug.print(HELP, .{});
                 std.os.exit(1);
             }
             filter_opt = args[i];
         } else if (std.mem.eql(u8, args[i], "-c")) {
             i += 1;
             if (i == args.len) {
-                getHelp();
+                std.debug.print(HELP, .{});
                 std.os.exit(1);
             }
             const c = try std.fmt.parseUnsigned(usize, args[i], 10);
@@ -182,7 +180,7 @@ pub fn main() MainError!void {
         } else if (std.mem.eql(u8, args[i], "-k")) {
             i += 1;
             if (i == args.len) {
-                getHelp();
+                std.debug.print(HELP, .{});
                 std.os.exit(1);
             }
             key_size = try std.fmt.parseUnsigned(usize, args[i], 10);
@@ -193,17 +191,17 @@ pub fn main() MainError!void {
         } else if (std.mem.eql(u8, args[i], "-i")) {
             is_iter_only = true;
         } else if (std.mem.eql(u8, args[i], "-h")) {
-            getHelp();
+            std.debug.print(HELP, .{});
             return {};
         } else {
-            getHelp();
+            std.debug.print(HELP, .{});
             std.os.exit(1);
         }
     }
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer if (gpa.deinit() == .leak) {
-        @panic("Leak!");
+        @panic("PANIC: Memory leak has occurred!");
     };
     const allocator = gpa.allocator();
 
