@@ -3,8 +3,8 @@
 [![CI][ci-shield]][ci-url]
 [![CD][cd-shield]][cd-url]
 [![Docs][docs-shield]][docs-url]
+[![Codecov][codecov-shield]][codecov-url]
 [![License][license-shield]][license-url]
-[![Resources][resources-shield]][resources-url]
 
 ### Zig port of [komihash hash function](https://github.com/avaneev/komihash) created by [Aleksey Vaneev](https://github.com/avaneev).
 
@@ -97,7 +97,7 @@ siphash128:
 [cd-url]: https://github.com/tensorush/zig-komihash/blob/main/.github/workflows/cd.yaml
 [docs-shield]: https://img.shields.io/badge/click-F6A516?style=for-the-badge&logo=zig&logoColor=F6A516&label=docs&labelColor=black
 [docs-url]: https://tensorush.github.io/zig-komihash
+[codecov-shield]: https://img.shields.io/codecov/c/github/tensorush/zig-komihash?style=for-the-badge&labelColor=black
+[codecov-url]: https://app.codecov.io/gh/tensorush/zig-komihash
 [license-shield]: https://img.shields.io/github/license/tensorush/zig-komihash.svg?style=for-the-badge&labelColor=black
 [license-url]: https://github.com/tensorush/zig-komihash/blob/main/LICENSE.md
-[resources-shield]: https://img.shields.io/badge/click-F6A516?style=for-the-badge&logo=zig&logoColor=F6A516&label=resources&labelColor=black
-[resources-url]: https://github.com/tensorush/Awesome-Languages-Learning#lizard-zig
