@@ -17,7 +17,7 @@ pub fn build(b: *std.Build) void {
     lib.emit_docs = .emit;
 
     const lib_install = b.addInstallArtifact(lib);
-    const lib_step = b.step("lib", "Install lib");
+    const lib_step = b.step("lib", "Install library");
     lib_step.dependOn(&lib_install.step);
     b.default_step.dependOn(lib_step);
 

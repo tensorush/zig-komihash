@@ -6,7 +6,7 @@
 [![Codecov][codecov-shield]][codecov-url]
 [![License][license-shield]][license-url]
 
-### Zig port of [komihash hash function](https://github.com/avaneev/komihash) created by [Aleksey Vaneev](https://github.com/avaneev).
+### Zig port of the [Komihash hash function](https://github.com/avaneev/komihash) created by [Aleksey Vaneev](https://github.com/avaneev).
 
 #### :rocket: Usage
 
