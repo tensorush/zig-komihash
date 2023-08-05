@@ -3,12 +3,12 @@
 const std = @import("std");
 
 /// Cold path for manually-guided branch prediction.
-pub inline fn coldPath() void {
+pub fn coldPath() void {
     @setCold(true);
 }
 
 /// Likelihood check for manually-guided branch prediction.
-pub inline fn isLikely(is_likely: bool) bool {
+pub fn isLikely(is_likely: bool) bool {
     if (!is_likely) {
         coldPath();
     }
@@ -16,19 +16,19 @@ pub inline fn isLikely(is_likely: bool) bool {
 }
 
 /// Reads little-endian unsigned 32-bit integer from memory.
-pub inline fn readInt32(bytes: []const u8) u32 {
+pub fn readInt32(bytes: []const u8) u32 {
     const bytes_ptr: *const [4]u8 = @ptrCast(bytes);
     return std.mem.readIntLittle(u32, bytes_ptr);
 }
 
 /// Reads little-endian unsigned 64-bit integer from memory.
-pub inline fn readInt64(bytes: []const u8) u64 {
+pub fn readInt64(bytes: []const u8) u64 {
     const bytes_ptr: *const [8]u8 = @ptrCast(bytes);
     return std.mem.readIntLittle(u64, bytes_ptr);
 }
 
 /// Builds an unsigned 64-bit value out of remaining bytes in a message, and pads it with the "final byte".
-pub inline fn padLong3(msg: []const u8, idx: usize, len: usize) u64 {
+pub fn padLong3(msg: []const u8, idx: usize, len: usize) u64 {
     std.debug.assert(len < 8);
 
     const ml8: u6 = @intCast(len * 8);
@@ -46,7 +46,7 @@ pub inline fn padLong3(msg: []const u8, idx: usize, len: usize) u64 {
 }
 
 /// Builds an unsigned 64-bit value out of remaining bytes in a message, and pads it with the "final byte".
-pub inline fn padShort(msg: []const u8, idx: usize, len: usize) u64 {
+pub fn padShort(msg: []const u8, idx: usize, len: usize) u64 {
     std.debug.assert(len > 0 and len < 8);
 
     const ml8: u6 = @intCast(len * 8);
@@ -69,7 +69,7 @@ pub inline fn padShort(msg: []const u8, idx: usize, len: usize) u64 {
 }
 
 /// Builds an unsigned 64-bit value out of remaining bytes in a message, and pads it with the "final byte".
-pub inline fn padLong4(msg: []const u8, idx: usize, len: usize, last_word_opt: ?[8]u8) u64 {
+pub fn padLong4(msg: []const u8, idx: usize, len: usize, last_word_opt: ?[8]u8) u64 {
     std.debug.assert(len < 8);
 
     const ml8: u6 = @intCast(len * 8);
@@ -94,7 +94,7 @@ pub inline fn padLong4(msg: []const u8, idx: usize, len: usize, last_word_opt: ?
 }
 
 /// Multiplies two 64-bit unsigned integers, and stores the result in two other 64-bit unsigned integers.
-pub inline fn mul128(a: u64, b: u64, rl: *u64, rh: *u64) void {
+pub fn mul128(a: u64, b: u64, rl: *u64, rh: *u64) void {
     const r = std.math.mulWide(u64, a, b);
     rl.* = @truncate(r);
     rh.* = @truncate(r >> 64);

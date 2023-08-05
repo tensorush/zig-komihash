@@ -13,22 +13,22 @@ pub const Komirand = struct {
     seed2: u64 = 0,
 
     /// Initializes PRNG with one seed.
-    pub inline fn init(seed: u64) Komirand {
+    pub fn init(seed: u64) Komirand {
         return .{ .seed1 = seed, .seed2 = seed };
     }
 
     /// Initializes PRNG with two seeds. Best initialized to the same value.
-    pub inline fn initWithExtraSeed(seed1: u64, seed2: u64) Komirand {
+    pub fn initWithExtraSeed(seed1: u64, seed2: u64) Komirand {
         return .{ .seed1 = seed1, .seed2 = seed2 };
     }
 
     /// Provides Random API initialized with the fill function.
-    pub inline fn random(self: *Komirand) std.rand.Random {
+    pub fn random(self: *Komirand) std.rand.Random {
         return std.rand.Random.init(self, fill);
     }
 
     /// Produces the next uniformly-random 64-bit value.
-    pub inline fn next(self: *Komirand) u64 {
+    pub fn next(self: *Komirand) u64 {
         var rh: u64 = undefined;
         utils.mul128(self.seed1, self.seed2, &self.seed1, &rh);
         self.seed2 +%= rh +% 0xAAAAAAAAAAAAAAAA;
@@ -37,7 +37,7 @@ pub const Komirand = struct {
     }
 
     /// Fills a byte buffer with pseudo-random values.
-    pub inline fn fill(self: *Komirand, buf: []u8) void {
+    pub fn fill(self: *Komirand, buf: []u8) void {
         const aligned_len = buf.len - (buf.len & 7);
         var i: usize = 0;
 
@@ -72,21 +72,21 @@ pub const Komirand = struct {
 /// Fast, high-quality non-cryptographic hash function, discrete-incremental and streamed-hashing-capable.
 pub const KomihashStateless = struct {
     /// Common hashing round with 16-byte input, using the "r1h" temporary variable.
-    inline fn roundInput(msg: []const u8, idx: usize, seed1: *u64, seed5: *u64, r1h: *u64) void {
+    fn roundInput(msg: []const u8, idx: usize, seed1: *u64, seed5: *u64, r1h: *u64) void {
         utils.mul128(seed1.* ^ utils.readInt64(msg[idx .. idx + 8]), seed5.* ^ utils.readInt64(msg[idx + 8 .. idx + 16]), seed1, r1h);
         seed5.* +%= r1h.*;
         seed1.* ^= seed5.*;
     }
 
     /// Common hashing round without input, using the "r2h" temporary variable.
-    inline fn roundNoInput(seed1: *u64, seed5: *u64, r2h: *u64) void {
+    fn roundNoInput(seed1: *u64, seed5: *u64, r2h: *u64) void {
         utils.mul128(seed1.*, seed5.*, seed1, r2h);
         seed5.* +%= r2h.*;
         seed1.* ^= seed5.*;
     }
 
     /// Common hashing finalization round, using the "r1h" and "r2h" temporary variables.
-    inline fn final(seed1: *u64, seed5: *u64, r1h: *u64, r2h: *u64) void {
+    fn final(seed1: *u64, seed5: *u64, r1h: *u64, r2h: *u64) void {
         utils.mul128(r1h.*, r2h.*, seed1, r1h);
         seed5.* +%= r1h.*;
         seed1.* ^= seed5.*;
@@ -94,18 +94,22 @@ pub const KomihashStateless = struct {
     }
 
     /// Common 64-byte full-performance hashing loop.
-    inline fn loop(msg: []const u8, idx: *usize, len: *usize, seed1: *u64, seed2: *u64, seed3: *u64, seed4: *u64, seed5: *u64, seed6: *u64, seed7: *u64, seed8: *u64, r1h: *u64, r2h: *u64, r3h: *u64, r4h: *u64) void {
+    fn loop(msg: []const u8, idx: *usize, len: *usize, seed1: *u64, seed2: *u64, seed3: *u64, seed4: *u64, seed5: *u64, seed6: *u64, seed7: *u64, seed8: *u64, r1h: *u64, r2h: *u64, r3h: *u64, r4h: *u64) void {
         std.debug.assert(len.* > 63);
 
         while (true) {
             const i = idx.*;
+
             @prefetch(msg, .{ .locality = 1 });
+
             utils.mul128(seed1.* ^ utils.readInt64(msg[i .. i + 8]), seed5.* ^ utils.readInt64(msg[i + 32 .. i + 40]), seed1, r1h);
             utils.mul128(seed2.* ^ utils.readInt64(msg[i + 8 .. i + 16]), seed6.* ^ utils.readInt64(msg[i + 40 .. i + 48]), seed2, r2h);
             utils.mul128(seed3.* ^ utils.readInt64(msg[i + 16 .. i + 24]), seed7.* ^ utils.readInt64(msg[i + 48 .. i + 56]), seed3, r3h);
             utils.mul128(seed4.* ^ utils.readInt64(msg[i + 24 .. i + 32]), seed8.* ^ utils.readInt64(msg[i + 56 .. i + 64]), seed4, r4h);
+
             idx.* += 64;
             len.* -= 64;
+
             seed5.* +%= r1h.*;
             seed6.* +%= r2h.*;
             seed7.* +%= r3h.*;
@@ -114,6 +118,7 @@ pub const KomihashStateless = struct {
             seed3.* ^= seed6.*;
             seed4.* ^= seed7.*;
             seed1.* ^= seed8.*;
+
             if (!utils.isLikely(len.* > 63)) {
                 break;
             }
@@ -121,7 +126,7 @@ pub const KomihashStateless = struct {
     }
 
     /// The hashing epilogue function.
-    inline fn epilogue(msg: []const u8, idx: usize, len: usize, seed1: u64, seed5: u64, last_bytes_opt: ?[8]u8) u64 {
+    fn epilogue(msg: []const u8, idx: usize, len: usize, seed1: u64, seed5: u64, last_bytes_opt: ?[8]u8) u64 {
         var r1h: u64 = undefined;
         var r2h: u64 = undefined;
         var s1 = seed1;
@@ -155,7 +160,7 @@ pub const KomihashStateless = struct {
     }
 
     /// Produces a 64-bit hash value of the specified message.
-    pub inline fn hash(seed: u64, msg: []const u8) u64 {
+    pub fn hash(seed: u64, msg: []const u8) u64 {
         var seed1: u64 = 0x243F6A8885A308D3 ^ (seed & 0x5555555555555555);
         var seed5: u64 = 0x452821E638D01377 ^ (seed & 0xAAAAAAAAAAAAAAAA);
         var r1h: u64 = undefined;
@@ -240,12 +245,12 @@ pub const Komihash = struct {
     buf_len: usize = 0,
 
     /// Initializes the streamed hashing session with a seed.
-    pub inline fn init(seed: u64) Komihash {
+    pub fn init(seed: u64) Komihash {
         return .{ .seeds = [1]u64{seed} ++ ([1]u64{0} ** 7) };
     }
 
     /// Updates the streamed hashing state with new input data.
-    pub inline fn update(self: *Komihash, msg: []const u8) void {
+    pub fn update(self: *Komihash, msg: []const u8) void {
         var buf_len = self.buf_len;
         var sw_idx: usize = 0;
         var sw_len: usize = 0;
@@ -355,7 +360,7 @@ pub const Komihash = struct {
     }
 
     /// Finalizes the streamed hashing session, and returns the hash of previously hashed data.
-    pub inline fn final(self: *Komihash) u64 {
+    pub fn final(self: *Komihash) u64 {
         var idx: usize = 0;
         var len = self.buf_len;
         const msg = self.buf[0..len];
@@ -399,7 +404,7 @@ pub const Komihash = struct {
     }
 
     /// Produces a 64-bit hash value of the specified message.
-    pub inline fn hash(seed: u64, msg: []const u8) u64 {
+    pub fn hash(seed: u64, msg: []const u8) u64 {
         return KomihashStateless.hash(seed, msg);
     }
 
