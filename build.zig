@@ -17,7 +17,7 @@ pub fn build(b: *std.Build) void {
         .version = .{ .major = 5, .minor = 4, .patch = 0 },
     });
 
-    const lib_install = b.addInstallArtifact(lib);
+    const lib_install = b.addInstallArtifact(lib, .{});
     lib_step.dependOn(&lib_install.step);
     b.default_step.dependOn(lib_step);
 
