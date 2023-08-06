@@ -54,11 +54,9 @@ const Result = struct {
     throughput: u64,
 };
 
-const BenchmarkError = std.mem.Allocator.Error || std.time.Timer.Error;
+const Error = std.mem.Allocator.Error || std.time.Timer.Error || std.process.ArgIterator.InitError || std.fmt.ParseIntError || std.os.WriteError;
 
-const MainError = BenchmarkError || std.process.ArgIterator.InitError || std.fmt.ParseIntError || std.os.WriteError;
-
-fn benchmarkHash(comptime H: anytype, bytes: usize, allocator: std.mem.Allocator, random: std.rand.Random) BenchmarkError!Result {
+fn benchmarkHash(comptime H: anytype, bytes: usize, allocator: std.mem.Allocator, random: std.rand.Random) Error!Result {
     const blocks_count = bytes / BLOCK_SIZE;
     var blocks = try allocator.alloc(u8, BLOCK_SIZE + ALIGNMENT * (blocks_count - 1));
     defer allocator.free(blocks);
@@ -93,7 +91,7 @@ fn benchmarkHash(comptime H: anytype, bytes: usize, allocator: std.mem.Allocator
     };
 }
 
-fn benchmarkHashSmallKeys(comptime H: anytype, key_size: usize, bytes: usize, allocator: std.mem.Allocator, random: std.rand.Random) BenchmarkError!Result {
+fn benchmarkHashSmallKeys(comptime H: anytype, key_size: usize, bytes: usize, allocator: std.mem.Allocator, random: std.rand.Random) Error!Result {
     var blocks = try allocator.alloc(u8, bytes);
     defer allocator.free(blocks);
     random.bytes(blocks);
@@ -134,7 +132,7 @@ fn benchmarkHashSmallKeys(comptime H: anytype, key_size: usize, bytes: usize, al
     };
 }
 
-pub fn main() MainError!void {
+pub fn main() Error!void {
     const stdout = std.io.getStdOut().writer();
 
     var buf: [1024]u8 = undefined;
