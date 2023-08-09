@@ -60,9 +60,9 @@ pub const Komirand = struct {
     }
 
     test "Komirand" {
-        for (SEEDS, 0..) |seed, i| {
+        for (TEST_SEEDS, 0..) |seed, i| {
             var komirand = Komirand.init(seed);
-            for (VALUES[i]) |value| {
+            for (TEST_VALUES[i]) |value| {
                 try std.testing.expectEqual(value, komirand.next());
             }
         }
@@ -220,9 +220,9 @@ pub const KomihashStateless = struct {
     }
 
     test "KomihashStateless" {
-        for (SEEDS, 0..) |seed, i| {
-            for (HASHES[i], 0..) |expected_hash, j| {
-                try std.testing.expectEqual(expected_hash, KomihashStateless.hash(seed, MSGS[j]));
+        for (TEST_SEEDS, 0..) |seed, i| {
+            for (TEST_HASHES[i], 0..) |expected_hash, j| {
+                try std.testing.expectEqual(expected_hash, KomihashStateless.hash(seed, TEST_MSGS[j]));
             }
         }
     }
@@ -409,16 +409,16 @@ pub const Komihash = struct {
     }
 
     test "Komihash" {
-        for (SEEDS, 0..) |seed, i| {
-            for (HASHES[i], 0..) |expected_hash, j| {
+        for (TEST_SEEDS, 0..) |seed, i| {
+            for (TEST_HASHES[i], 0..) |expected_hash, j| {
                 var stream = Komihash.init(seed);
-                stream.update(MSGS[j]);
+                stream.update(TEST_MSGS[j]);
                 try std.testing.expectEqual(expected_hash, stream.final());
 
                 var len: u8 = 1;
                 while (len < 128) : (len += 1) {
                     stream = Komihash.init(seed);
-                    var msg = MSGS[j];
+                    var msg = TEST_MSGS[j];
                     while (msg.len > 0) {
                         const slice = msg[0..@min(msg.len, len)];
                         msg = msg[slice.len..];
@@ -431,25 +431,25 @@ pub const Komihash = struct {
     }
 };
 
-// Test seeds for initializing `Komirand` and `Komihash`.
-const SEEDS = [_]u64{ 0, 256, 81_985_529_216_486_895 };
+/// Test seeds for initializing `Komirand` and `Komihash`.
+const TEST_SEEDS = [_]u64{ 0, 256, 81_985_529_216_486_895 };
 
-// Test arrays of random values expected from `Komirand` when initialized with test seeds.
-const VALUES = [SEEDS.len][12]u64{
+/// Test arrays of random values expected from `Komirand` when initialized with test seeds.
+const TEST_VALUES = [TEST_SEEDS.len][12]u64{
     .{ 0xAAAAAAAAAAAAAAAA, 0xFFFFFFFFFFFFFFFE, 0x4924924924924910, 0xBAEBAEBAEBAEBA00, 0x400C62CC4727496B, 0x35A969173E8F925B, 0xDB47F6BAE9A247AD, 0x98E0F6CECE6711FE, 0x97FFA2397FDA534B, 0x11834262360DF918, 0x34E53DF5399F2252, 0xECAEB74A81D648ED },
     .{ 0xAAAAAAAAAAABABAA, 0xFFFFFFFFF8FCF8FE, 0xDB6DBA1E4DBB1134, 0xF5B7D3AEC37F4CB1, 0x66A571DA7DED7051, 0x2D59EC9245BF03D9, 0x5C06A41BD510AED8, 0xEA5E7EA9D2BD07A2, 0xE395015DDCE7756F, 0xC07981AAEAAE3B38, 0x2E120EBFEE59A5A2, 0x9001EEE495244DBA },
     .{ 0x776AD9718078CA64, 0x737AA5D5221633D0, 0x685046CCA30F6F44, 0xFB725CB01B30C1BA, 0xC501CC999EDE619F, 0x8427298E525DB507, 0xD9BAF3C54781F75E, 0x7F5A4E5B97B37C7B, 0xDE8A0AFE8E03B8C1, 0xB6ED3E72B69FC3D6, 0xA68727902F7628D0, 0x44162B63AF484587 },
 };
 
-// Test hashes expected from `Komihash.hash()` function when initialized with test seeds and provided with test messages.
-const HASHES = [SEEDS.len][MSGS.len]u64{
+/// Test hashes expected from `Komihash.hash()` function when initialized with test seeds and provided with test messages.
+const TEST_HASHES = [TEST_SEEDS.len][TEST_MSGS.len]u64{
     .{ 0x05AD960802903A9D, 0xD15723521D3C37B1, 0x467CAA28EA3DA7A6, 0xF18E67BC90C43233, 0x2C514F6E5DCB11CB, 0x7A9717E9EEA4BE8B, 0xA56469564C2EA0FF, 0x00B4313A24431306, 0x64C2AD96013F70FE, 0x7A3888BC95545364, 0xC77E02ED4B201B9A, 0x256D74350303A1BA, 0x59609C71697BB9DF, 0x36EB9E6A4C2C5E4B, 0x8DD56C332850BAA6, 0xCBB722192B353999, 0x90B07E2158F88CC0, 0x24C9621701603741, 0x1D4C1D97CA684334, 0xD1A425D530652287, 0x72623BE342C20AB5, 0x94C3DBDCA59DDF57 },
     .{ 0x5F197B30BCEC1E45, 0xA761280322BB7698, 0x11C31CCABAA524F1, 0x3A43B7F58281C229, 0xCFF90B0466B7E3A2, 0x8AB53F45CC9315E3, 0xEA606E43D1976CCF, 0x889B2F2CEECBEC73, 0xACBEC1886CD23275, 0x57C3AFFD1B71FCDB, 0x7EF6BA49A3B068C3, 0x49DBCA62ED5A1DDF, 0x192848484481E8C0, 0x420B43A5EDBA1BD7, 0xD6E8400A9DE24CE3, 0xBEA291B225FF384D, 0x0EC94062B2F06960, 0xFA613272ECD49985, 0x76F0BB380BC207BE, 0x4AFB4E08CA77C020, 0x410F9C129AD88AEA, 0x066C7B25F4F569AE },
     .{ 0x6CE66A2E8D4979A5, 0x5B1DA0B43545D196, 0x26AF914213D0C915, 0x62D9CA1B73250CB5, 0x90AB7C9F831CD940, 0x84AE4EB65B96617E, 0xACEEBC32A3C0D9E4, 0xDAA1A90ECB95F6F8, 0xEC8EB3EF4AF380B4, 0x07045BD31ABBA34C, 0xD5F619FB2E62C4AE, 0x5A336FD2C4C39ABE, 0x0E870B4623EEA8EC, 0xE552EDD6BF419D1D, 0x37D170DDCB1223E6, 0x1CD89E708E5098B6, 0x765490569CCD77F2, 0x19E9D77B86D01EE8, 0x25F83EE520C1D241, 0xD6007417091CD4C0, 0x3E49C2D3727B9CC9, 0xB2B3405EE5D65F4C },
 };
 
-// Test messages provided into `Komihash.hash()` function.
-const MSGS = [_][]const u8{
+/// Test messages provided into `Komihash.hash()` function.
+const TEST_MSGS = [_][]const u8{
     "This is a 32-byte testing string",
     "The cat is out of the bag",
     "A 16-byte string",
