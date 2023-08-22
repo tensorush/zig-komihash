@@ -51,42 +51,42 @@
 ```bash
 $ zig build bench
 fnv1a:
-    iterative:   718.4MiB/s [650703db2c0206d2]
-    small keys:    1.8GiB/s [6c559c3193d43e3b]
+    iterative:   762.1MiB/s [650703db2c0206d2]
+    small keys:    1.9GiB/s [6c559c3193d43e3b]
 adler32:
-    iterative:     2.6GiB/s [c086aa3d00000000]
-    small keys:    3.9GiB/s [1bf9e9d4621b7b00]
+    iterative:     2.7GiB/s [c086aa3d00000000]
+    small keys:    4.0GiB/s [1bf9e9d4621b7b00]
 crc32:
-    iterative:     2.1GiB/s [9d3deda300000000]
+    iterative:     2.2GiB/s [9d3deda300000000]
     small keys:    4.6GiB/s [20024c446a99a300]
 komihash:
-    iterative:    21.2GiB/s [e4eb29adadc6f054]
-    small keys:    8.7GiB/s [d5e88245d12f1296]
+    iterative:    22.0GiB/s [e4eb29adadc6f054]
+    small keys:    6.0GiB/s [d5e88245d12f1296]
 wyhash:
-    iterative:    23.2GiB/s [b11af152506ad324]
-    small keys:   12.3GiB/s [f3ac0179e7c891a1]
+    iterative:    24.2GiB/s [b11af152506ad324]
+    small keys:   12.5GiB/s [f3ac0179e7c891a1]
 xxhash64:
-    iterative:    13.6GiB/s [ad5f91161395fc66]
-    small keys:    4.0GiB/s [2109f6a3a1668fbd]
+    iterative:    13.5GiB/s [ad5f91161395fc66]
+    small keys:    5.4GiB/s [2109f6a3a1668fbd]
 xxhash32:
-    iterative:     6.3GiB/s [a0c7f49400000000]
-    small keys:    5.1GiB/s [1ffbad07bda51000]
+    iterative:     5.8GiB/s [a0c7f49400000000]
+    small keys:   13.0GiB/s [1ffbad07bda51000]
 cityhash32:
-    small keys:    3.3GiB/s [1ffdda7a22593c00]
+    small keys:    3.6GiB/s [1ffdda7a22593c00]
 cityhash64:
-    small keys:   19.1GiB/s [b461824ac22258b1]
+    small keys:   20.1GiB/s [b461824ac22258b1]
 murmur2_32:
-    small keys:    5.6GiB/s [20002678141d6f00]
+    small keys:    6.0GiB/s [20002678141d6f00]
 murmur2_64:
-    small keys:   10.6GiB/s [3ab85d34c908b670]
+    small keys:   10.8GiB/s [3ab85d34c908b670]
 murmur3_32:
-    small keys:    3.8GiB/s [1ffd2972d9cd7f00]
+    small keys:    3.9GiB/s [1ffd2972d9cd7f00]
 siphash64:
     iterative:     3.1GiB/s [15776aedb8c0be48]
     small keys:    1.9GiB/s [16263f2310b282a6]
 siphash128:
     iterative:     3.1GiB/s [f7ebecf4cf7c2fe4]
-    small keys:    1.9GiB/s [3b048c0df7e32674]
+    small keys:    2.0GiB/s [3b048c0df7e32674]
 ```
 
 <!-- MARKDOWN LINKS -->
