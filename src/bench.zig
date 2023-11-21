@@ -199,7 +199,7 @@ pub fn main() Error!void {
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer if (gpa.deinit() == .leak) {
-        @panic("PANIC: Memory leak has occurred!");
+        @panic("PANIC: Memory leak has occurred!\n");
     };
     const allocator = gpa.allocator();
 
