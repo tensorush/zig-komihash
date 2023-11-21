@@ -18,13 +18,13 @@ pub fn isLikely(is_likely: bool) bool {
 /// Reads little-endian unsigned 32-bit integer from memory.
 pub fn readInt32(bytes: []const u8) u32 {
     const bytes_ptr: *const [4]u8 = @ptrCast(bytes);
-    return std.mem.readIntLittle(u32, bytes_ptr);
+    return std.mem.readInt(u32, bytes_ptr, .little);
 }
 
 /// Reads little-endian unsigned 64-bit integer from memory.
 pub fn readInt64(bytes: []const u8) u64 {
     const bytes_ptr: *const [8]u8 = @ptrCast(bytes);
-    return std.mem.readIntLittle(u64, bytes_ptr);
+    return std.mem.readInt(u64, bytes_ptr, .little);
 }
 
 /// Builds an unsigned 64-bit value out of remaining bytes in a message, and pads it with the "final byte".
@@ -35,7 +35,7 @@ pub fn padLong3(msg: []const u8, idx: usize, len: usize) u64 {
 
     if (len < 4) {
         const msg3 = msg[idx + len - 3 ..];
-        var m: u64 = msg3[0] | @as(u64, msg3[1]) << 8 | @as(u64, msg3[2]) << 16;
+        const m: u64 = msg3[0] | @as(u64, msg3[1]) << 8 | @as(u64, msg3[2]) << 16;
         return @as(u64, 1) << ml8 | m >> (24 - ml8);
     }
 

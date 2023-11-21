@@ -268,7 +268,7 @@ pub const Komihash = struct {
             buf_len = 0;
             idx = 0;
         } else if (len < 33) {
-            var op = self.buf[buf_len..];
+            const op = self.buf[buf_len..];
 
             if (len == 4) {
                 std.mem.copy(u8, op, msg[0..4]);
