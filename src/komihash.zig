@@ -260,7 +260,7 @@ pub const Komihash = struct {
 
         if (buf_len + len >= BUF_CAPACITY and buf_len != 0) {
             const copy_len = BUF_CAPACITY - buf_len;
-            std.mem.copy(u8, self.buf[buf_len..], msg[0..copy_len]);
+            @memcpy(self.buf[buf_len .. buf_len + copy_len], msg[0..copy_len]);
             sw_idx = idx + copy_len;
             sw_len = len - copy_len;
             data = self.buf[0..];
@@ -271,20 +271,20 @@ pub const Komihash = struct {
             const op = self.buf[buf_len..];
 
             if (len == 4) {
-                std.mem.copy(u8, op, msg[0..4]);
+                @memcpy(op[0..4], msg[0..4]);
                 self.buf_len = buf_len + 4;
                 return {};
             }
 
             if (len == 8) {
-                std.mem.copy(u8, op, msg[0..8]);
+                @memcpy(op[0..8], msg[0..8]);
                 self.buf_len = buf_len + 8;
                 return {};
             }
 
             if (len > 0) {
                 self.buf_len = buf_len + len;
-                std.mem.copy(u8, op, msg[0..len]);
+                @memcpy(op[0..len], msg[0..len]);
             }
 
             return {};
@@ -355,7 +355,7 @@ pub const Komihash = struct {
             }
         }
 
-        std.mem.copy(u8, self.buf[buf_len..], data[idx .. idx + len]);
+        @memcpy(self.buf[buf_len .. buf_len + len], data[idx .. idx + len]);
         self.buf_len = buf_len + len;
     }
 

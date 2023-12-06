@@ -2,15 +2,10 @@
 
 const std = @import("std");
 
-/// Cold path for manually-guided branch prediction.
-pub fn coldPath() void {
-    @setCold(true);
-}
-
 /// Likelihood check for manually-guided branch prediction.
 pub fn isLikely(is_likely: bool) bool {
     if (!is_likely) {
-        coldPath();
+        @setCold(true);
     }
     return is_likely;
 }
