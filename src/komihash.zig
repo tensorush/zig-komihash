@@ -29,9 +29,8 @@ pub const Komirand = struct {
 
     /// Produces the next uniformly-random 64-bit value.
     pub fn next(self: *Komirand) u64 {
-        var rh: u64 = undefined;
-        utils.mul128(self.seed1, self.seed2, &self.seed1, &rh);
-        self.seed2 +%= rh +% 0xAAAAAAAAAAAAAAAA;
+        utils.mul128(self.seed1, self.seed2, &self.seed1, &self.seed2);
+        self.seed2 +%= 0xAAAAAAAAAAAAAAAA;
         self.seed1 ^= self.seed2;
         return self.seed1;
     }
@@ -72,29 +71,26 @@ pub const Komirand = struct {
 /// Fast, high-quality non-cryptographic hash function, discrete-incremental and streamed-hashing-capable.
 pub const KomihashStateless = struct {
     /// Common hashing round with 16-byte input, using the "r1h" temporary variable.
-    fn roundInput(msg: []const u8, idx: usize, seed1: *u64, seed5: *u64, r1h: *u64) void {
-        utils.mul128(seed1.* ^ utils.readInt64(msg[idx .. idx + 8]), seed5.* ^ utils.readInt64(msg[idx + 8 .. idx + 16]), seed1, r1h);
-        seed5.* +%= r1h.*;
+    fn roundInput(msg: []const u8, idx: usize, seed1: *u64, seed5: *u64) void {
+        utils.mul128(seed1.* ^ utils.readInt64(msg[idx .. idx + 8]), seed5.* ^ utils.readInt64(msg[idx + 8 .. idx + 16]), seed1, seed5);
         seed1.* ^= seed5.*;
     }
 
     /// Common hashing round without input, using the "r2h" temporary variable.
-    fn roundNoInput(seed1: *u64, seed5: *u64, r2h: *u64) void {
-        utils.mul128(seed1.*, seed5.*, seed1, r2h);
-        seed5.* +%= r2h.*;
+    fn roundNoInput(seed1: *u64, seed5: *u64) void {
+        utils.mul128(seed1.*, seed5.*, seed1, seed5);
         seed1.* ^= seed5.*;
     }
 
     /// Common hashing finalization round, using the "r1h" and "r2h" temporary variables.
     fn final(seed1: *u64, seed5: *u64, r1h: *u64, r2h: *u64) void {
-        utils.mul128(r1h.*, r2h.*, seed1, r1h);
-        seed5.* +%= r1h.*;
+        utils.mul128(r1h.*, r2h.*, seed1, seed5);
         seed1.* ^= seed5.*;
-        roundNoInput(seed1, seed5, r2h);
+        roundNoInput(seed1, seed5);
     }
 
     /// Common 64-byte full-performance hashing loop.
-    fn loop(msg: []const u8, idx: *usize, len: *usize, seed1: *u64, seed2: *u64, seed3: *u64, seed4: *u64, seed5: *u64, seed6: *u64, seed7: *u64, seed8: *u64, r1h: *u64, r2h: *u64, r3h: *u64, r4h: *u64) void {
+    fn loop(msg: []const u8, idx: *usize, len: *usize, seed1: *u64, seed2: *u64, seed3: *u64, seed4: *u64, seed5: *u64, seed6: *u64, seed7: *u64, seed8: *u64) void {
         std.debug.assert(len.* > 63);
 
         while (true) {
@@ -102,18 +98,14 @@ pub const KomihashStateless = struct {
 
             @prefetch(msg, .{ .locality = 1 });
 
-            utils.mul128(seed1.* ^ utils.readInt64(msg[i .. i + 8]), seed5.* ^ utils.readInt64(msg[i + 32 .. i + 40]), seed1, r1h);
-            utils.mul128(seed2.* ^ utils.readInt64(msg[i + 8 .. i + 16]), seed6.* ^ utils.readInt64(msg[i + 40 .. i + 48]), seed2, r2h);
-            utils.mul128(seed3.* ^ utils.readInt64(msg[i + 16 .. i + 24]), seed7.* ^ utils.readInt64(msg[i + 48 .. i + 56]), seed3, r3h);
-            utils.mul128(seed4.* ^ utils.readInt64(msg[i + 24 .. i + 32]), seed8.* ^ utils.readInt64(msg[i + 56 .. i + 64]), seed4, r4h);
+            utils.mul128(seed1.* ^ utils.readInt64(msg[i .. i + 8]), seed5.* ^ utils.readInt64(msg[i + 32 .. i + 40]), seed1, seed5);
+            utils.mul128(seed2.* ^ utils.readInt64(msg[i + 8 .. i + 16]), seed6.* ^ utils.readInt64(msg[i + 40 .. i + 48]), seed2, seed6);
+            utils.mul128(seed3.* ^ utils.readInt64(msg[i + 16 .. i + 24]), seed7.* ^ utils.readInt64(msg[i + 48 .. i + 56]), seed3, seed7);
+            utils.mul128(seed4.* ^ utils.readInt64(msg[i + 24 .. i + 32]), seed8.* ^ utils.readInt64(msg[i + 56 .. i + 64]), seed4, seed8);
 
             idx.* += 64;
             len.* -= 64;
 
-            seed5.* +%= r1h.*;
-            seed6.* +%= r2h.*;
-            seed7.* +%= r3h.*;
-            seed8.* +%= r4h.*;
             seed2.* ^= seed5.*;
             seed3.* ^= seed6.*;
             seed4.* ^= seed7.*;
@@ -135,14 +127,14 @@ pub const KomihashStateless = struct {
         var l = len;
 
         if (utils.isLikely(l > 31)) {
-            roundInput(msg, i, &s1, &s5, &r1h);
-            roundInput(msg, i + 16, &s1, &s5, &r1h);
+            roundInput(msg, i, &s1, &s5);
+            roundInput(msg, i + 16, &s1, &s5);
             i += 32;
             l -= 32;
         }
 
         if (l > 15) {
-            roundInput(msg, i, &s1, &s5, &r1h);
+            roundInput(msg, i, &s1, &s5);
             i += 16;
             l -= 16;
         }
@@ -170,7 +162,7 @@ pub const KomihashStateless = struct {
 
         @prefetch(msg, .{ .locality = 1 });
 
-        roundNoInput(&seed1, &seed5, &r2h);
+        roundNoInput(&seed1, &seed5);
 
         if (utils.isLikely(len < 16)) {
             r1h = seed1;
@@ -187,7 +179,7 @@ pub const KomihashStateless = struct {
         }
 
         if (utils.isLikely(len < 32)) {
-            roundInput(msg, idx, &seed1, &seed5, &r1h);
+            roundInput(msg, idx, &seed1, &seed5);
             if (len > 23) {
                 r2h = seed5 ^ utils.padLong4(msg, idx + 24, len - 24, null);
                 r1h = seed1 ^ utils.readInt64(msg[idx + 16 .. idx + 24]);
@@ -200,17 +192,15 @@ pub const KomihashStateless = struct {
             return seed1;
         }
 
-        if (len > 63) {
+        if (utils.isLikely(len > 63)) {
             var seed2 = 0x13198A2E03707344 ^ seed1;
             var seed3 = 0xA4093822299F31D0 ^ seed1;
             var seed4 = 0x082EFA98EC4E6C89 ^ seed1;
             var seed6 = 0xBE5466CF34E90C6C ^ seed5;
             var seed7 = 0xC0AC29B7C97C50DD ^ seed5;
             var seed8 = 0x3F84D5B5B5470917 ^ seed5;
-            var r3h: u64 = undefined;
-            var r4h: u64 = undefined;
 
-            loop(msg, &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8, &r1h, &r2h, &r3h, &r4h);
+            loop(msg, &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8);
 
             seed5 ^= seed6 ^ seed7 ^ seed8;
             seed1 ^= seed2 ^ seed3 ^ seed4;
@@ -267,27 +257,6 @@ pub const Komihash = struct {
             len = BUF_CAPACITY;
             buf_len = 0;
             idx = 0;
-        } else if (len < 33) {
-            const op = self.buf[buf_len..];
-
-            if (len == 4) {
-                @memcpy(op[0..4], msg[0..4]);
-                self.buf_len = buf_len + 4;
-                return {};
-            }
-
-            if (len == 8) {
-                @memcpy(op[0..8], msg[0..8]);
-                self.buf_len = buf_len + 8;
-                return {};
-            }
-
-            if (len > 0) {
-                self.buf_len = buf_len + len;
-                @memcpy(op[0..len], msg[0..len]);
-            }
-
-            return {};
         }
 
         if (buf_len == 0) {
@@ -300,10 +269,6 @@ pub const Komihash = struct {
                 var seed6: u64 = undefined;
                 var seed7: u64 = undefined;
                 var seed8: u64 = undefined;
-                var r1h: u64 = undefined;
-                var r2h: u64 = undefined;
-                var r3h: u64 = undefined;
-                var r4h: u64 = undefined;
 
                 if (self.is_hashing) {
                     seed1 = self.seeds[0];
@@ -319,7 +284,7 @@ pub const Komihash = struct {
                     const seed = self.seeds[0];
                     seed1 = 0x243F6A8885A308D3 ^ (seed & 0x5555555555555555);
                     seed5 = 0x452821E638D01377 ^ (seed & 0xAAAAAAAAAAAAAAAA);
-                    KomihashStateless.roundNoInput(&seed1, &seed5, &r2h);
+                    KomihashStateless.roundNoInput(&seed1, &seed5);
                     seed2 = 0x13198A2E03707344 ^ seed1;
                     seed3 = 0xA4093822299F31D0 ^ seed1;
                     seed4 = 0x082EFA98EC4E6C89 ^ seed1;
@@ -328,7 +293,7 @@ pub const Komihash = struct {
                     seed8 = 0x3F84D5B5B5470917 ^ seed5;
                 }
 
-                KomihashStateless.loop(data, &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8, &r1h, &r2h, &r3h, &r4h);
+                KomihashStateless.loop(data, &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8);
 
                 self.seeds[0] = seed1;
                 self.seeds[1] = seed2;
@@ -355,8 +320,8 @@ pub const Komihash = struct {
             }
         }
 
-        @memcpy(self.buf[buf_len .. buf_len + len], data[idx .. idx + len]);
         self.buf_len = buf_len + len;
+        @memcpy(self.buf[buf_len .. buf_len + len], data[idx .. idx + len]);
     }
 
     /// Finalizes the streamed hashing session, and returns the hash of previously hashed data.
@@ -389,12 +354,7 @@ pub const Komihash = struct {
         var seed8 = self.seeds[7];
 
         if (len > 63) {
-            var r1h: u64 = undefined;
-            var r2h: u64 = undefined;
-            var r3h: u64 = undefined;
-            var r4h: u64 = undefined;
-
-            KomihashStateless.loop(msg, &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8, &r1h, &r2h, &r3h, &r4h);
+            KomihashStateless.loop(msg, &idx, &len, &seed1, &seed2, &seed3, &seed4, &seed5, &seed6, &seed7, &seed8);
         }
 
         seed5 ^= seed6 ^ seed7 ^ seed8;

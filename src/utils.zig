@@ -89,8 +89,8 @@ pub fn padLong4(msg: []const u8, idx: usize, len: usize, last_word_opt: ?[8]u8) 
 }
 
 /// Multiplies two 64-bit unsigned integers, and stores the result in two other 64-bit unsigned integers.
-pub fn mul128(a: u64, b: u64, rl: *u64, rh: *u64) void {
-    const r = std.math.mulWide(u64, a, b);
+pub fn mul128(m1: u64, m2: u64, rl: *u64, rha: *u64) void {
+    const r = std.math.mulWide(u64, m1, m2);
     rl.* = @truncate(r);
-    rh.* = @truncate(r >> 64);
+    rha.* +%= @truncate(r >> 64);
 }
