@@ -12,14 +12,12 @@ pub fn isLikely(is_likely: bool) bool {
 
 /// Reads little-endian unsigned 32-bit integer from memory.
 pub fn readInt32(bytes: []const u8) u32 {
-    const bytes_ptr: *const [4]u8 = @ptrCast(bytes);
-    return std.mem.readInt(u32, bytes_ptr, .little);
+    return std.mem.readInt(u32, @ptrCast(bytes), .little);
 }
 
 /// Reads little-endian unsigned 64-bit integer from memory.
 pub fn readInt64(bytes: []const u8) u64 {
-    const bytes_ptr: *const [8]u8 = @ptrCast(bytes);
-    return std.mem.readInt(u64, bytes_ptr, .little);
+    return std.mem.readInt(u64, @ptrCast(bytes), .little);
 }
 
 /// Builds an unsigned 64-bit value out of remaining bytes in a message, and pads it with the "final byte".
