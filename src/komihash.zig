@@ -305,12 +305,11 @@ pub const Komihash = struct {
                 self.seeds[7] = seed8;
 
                 if (sw_len == 0) {
-                    if (len == 0) {
-                        self.buf_len = 0;
-                        self.last_bytes_opt = ([1]u8{0} ** 7) ++ [1]u8{data[idx - 1]};
-                        return {};
+                    if (len != 0) {
+                        break;
                     }
-                    break;
+                    self.buf_len = 0;
+                    return {};
                 }
 
                 idx = sw_idx;
