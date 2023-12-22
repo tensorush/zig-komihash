@@ -111,7 +111,7 @@ pub const KomihashStateless = struct {
             seed4.* ^= seed7.*;
             seed1.* ^= seed8.*;
 
-            if (!utils.isLikely(len.* > 63)) {
+            if (len.* <= 63) {
                 break;
             }
         }
@@ -126,7 +126,7 @@ pub const KomihashStateless = struct {
         var i = idx;
         var l = len;
 
-        if (utils.isLikely(l > 31)) {
+        if (l > 31) {
             roundInput(msg, i, &s1, &s5);
             roundInput(msg, i + 16, &s1, &s5);
             i += 32;
@@ -164,13 +164,13 @@ pub const KomihashStateless = struct {
 
         roundNoInput(&seed1, &seed5);
 
-        if (utils.isLikely(len < 16)) {
+        if (len < 16) {
             r1h = seed1;
             r2h = seed5;
             if (len > 7) {
                 r2h ^= utils.padLong3(msg, idx + 8, len - 8);
                 r1h ^= utils.readInt64(msg[idx .. idx + 8]);
-            } else if (utils.isLikely(len != 0)) {
+            } else if (len != 0) {
                 r1h ^= utils.padShort(msg, idx, len);
             }
 
@@ -178,7 +178,7 @@ pub const KomihashStateless = struct {
             return seed1;
         }
 
-        if (utils.isLikely(len < 32)) {
+        if (len < 32) {
             roundInput(msg, idx, &seed1, &seed5);
             if (len > 23) {
                 r2h = seed5 ^ utils.padLong4(msg, idx + 24, len - 24, null);
@@ -192,7 +192,7 @@ pub const KomihashStateless = struct {
             return seed1;
         }
 
-        if (utils.isLikely(len > 63)) {
+        if (len > 63) {
             var seed2 = 0x13198A2E03707344 ^ seed1;
             var seed3 = 0xA4093822299F31D0 ^ seed1;
             var seed4 = 0x082EFA98EC4E6C89 ^ seed1;

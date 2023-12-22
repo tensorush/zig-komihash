@@ -2,14 +2,6 @@
 
 const std = @import("std");
 
-/// Likelihood check for manually-guided branch prediction.
-pub fn isLikely(is_likely: bool) bool {
-    if (!is_likely) {
-        @setCold(true);
-    }
-    return is_likely;
-}
-
 /// Reads little-endian unsigned 32-bit integer from memory.
 pub fn readInt32(bytes: []const u8) u32 {
     return std.mem.readInt(u32, @ptrCast(bytes), .little);
