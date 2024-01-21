@@ -1,10 +1,11 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    const root_source_file = std.Build.FileSource.relative("src/komihash.zig");
+    const target = b.standardTargetOptions(.{});
+    const root_source_file = std.Build.LazyPath.relative("src/komihash.zig");
 
     // Module
-    _ = b.addModule("komihash", .{ .source_file = root_source_file });
+    _ = b.addModule("komihash", .{ .root_source_file = root_source_file });
 
     // Library
     const lib_step = b.step("lib", "Install library");
@@ -12,7 +13,7 @@ pub fn build(b: *std.Build) void {
     const lib = b.addStaticLibrary(.{
         .name = "komihash",
         .root_source_file = root_source_file,
-        .target = b.standardTargetOptions(.{}),
+        .target = target,
         .optimize = b.standardOptimizeOption(.{}),
         .version = .{ .major = 5, .minor = 9, .patch = 0 },
     });
@@ -38,7 +39,8 @@ pub fn build(b: *std.Build) void {
 
     const bench = b.addExecutable(.{
         .name = "hash_bench",
-        .root_source_file = std.Build.FileSource.relative("src/bench.zig"),
+        .root_source_file = std.Build.LazyPath.relative("src/bench.zig"),
+        .target = target,
         .optimize = .ReleaseFast,
     });
 
